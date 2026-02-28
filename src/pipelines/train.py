@@ -46,8 +46,6 @@ AVAILABLE_MODELS = [
     "logistic_regression",
     "random_forest",
     "xgboost",
-    "lightgbm",
-    "catboost",
 ]
 
 
@@ -135,16 +133,6 @@ def _build_model(model_name: str, params: dict[str, Any], seed: int) -> Any:
             verbosity=0,
             **p,
         )
-
-    if model_name == "lightgbm":
-        from lightgbm import LGBMClassifier
-
-        return LGBMClassifier(random_state=seed, verbose=-1, **params)
-
-    if model_name == "catboost":
-        from catboost import CatBoostClassifier
-
-        return CatBoostClassifier(random_seed=seed, **params)
 
     raise ValueError(f"Unknown model: {model_name}")
 
