@@ -1,8 +1,8 @@
 # 📋 Dolap Sale Prediction — Master TODO
 
-> **Son güncelleme:** 2026-03-01
+> **Son güncelleme:** 2026-03-02
 > **Branch:** `develop`
-> **Durum:** Phase 0.5 tamamlandı → M1 Data Collection bekleniyor
+> **Durum:** Phase 3 tamamlandı → M1 Data Collection devam ediyor
 
 ---
 
@@ -17,7 +17,7 @@
 │  ├── Phase 0.5 — ML Infrastructure (Experiment Tracking)                │
 │  └── Phase 1   — Literature Research & Project Report                   │
 │                                                                         │
-│  🌐 M1 — DATA COLLECTION SYSTEM                            [░░░░░░░░] ⏳│
+│  🌐 M1 — DATA COLLECTION SYSTEM                            [████░░░░] 🔄│
 │  ├── Phase 2   — Dolap Site Reverse Engineering                         │
 │  ├── Phase 3   — Basic Scraper Prototype                                │
 │  ├── Phase 4   — Anti-Ban Protection                                    │
@@ -115,16 +115,16 @@
 
 ## 🌐 M1 — DATA COLLECTION SYSTEM
 
-### Phase 2 — Dolap Site Reverse Engineering
-> commit hedefi: `feat: dolap site reverse engineering`
+### Phase 2 — Dolap Site Reverse Engineering `8bacbfc`
+> commit: `feat: dolap site reverse engineering`
 
-- [ ] Dolap.com `robots.txt` analizi ve uyumluluk notu
-- [ ] Listing URL pattern tespiti ve doğrulama
+- [x] Dolap.com `robots.txt` analizi ve uyumluluk notu
+- [x] Listing URL pattern tespiti ve doğrulama
   - Örnek: `dolap.com/urun/{marka}-{renk}-{kategori}-{durum}-{satici}-{id}`
-- [ ] Kategori sayfası pagination yapısı
-  - Sayfa numaralama: query param mı, infinite scroll mı, API mı?
-  - Bir sayfada kaç ilan?
-- [ ] Ürün detay sayfası HTML structure mapping
+- [x] Kategori sayfası pagination yapısı
+  - Sayfa numaralama: query param (`?sayfa=N`) + SPA rendering
+  - Bir sayfada ~20 ilan
+- [x] Ürün detay sayfası HTML structure mapping
   - Fiyat selector
   - Marka selector
   - Durum etiketi selector
@@ -132,44 +132,66 @@
   - Açıklama selector
   - Beden / renk selector
   - Kargo bilgisi selector
-- [ ] Satıcı profil sayfası yapısı
+- [x] Satıcı profil sayfası yapısı
   - Rating/değerlendirme sayısı
   - Toplam satış
-  - Hesap yaşı (mümkünse)
-- [ ] **"Satıldı" badge detection** — HTML'de nasıl görünüyor?
+  - Hesap yaşı (mümkünse → elde edilemiyor)
+- [x] **"Satıldı" badge detection** — HTML'de nasıl görünüyor?
   - CSS class? Text? Overlay?
   - 404 vs "Satıldı" vs "Kaldırıldı" ayrımı
-- [ ] JavaScript-rendered content var mı? (SSR vs CSR tespiti)
-- [ ] Dolap API endpoint keşfi (network tab analizi)
-- [ ] `docs/DOLAP_SITE_MAP.md` — tüm bulguları dokümante et
-- [ ] Test: 3-5 farklı kategoriden elle 1'er ilan parse et
+- [x] JavaScript-rendered content var mı? (SSR vs CSR tespiti)
+  - **Cloudflare WAF** tüm HTTP client'ları blokluyor (403)
+  - **Selenium zorunlu** — real browser gerekiyor
+  - Kategori sayfaları: SPA (JS render)
+  - Ürün detay sayfaları: SSR benzeri (HTML'de mevcut)
+- [x] Dolap API endpoint keşfi (network tab analizi)
+  - `/api/product/{id}` ve `/rest/product/{id}` → 403 bloklu
+  - `public-mdc.dolap.com` → DNS çözünemiyor
+- [x] `docs/DOLAP_SITE_MAP.md` — tüm bulguları dokümante et (354 satır, 14 bölüm)
+- [x] Test: 3-5 farklı kategoriden elle 1'er ilan parse et
 
-### Phase 3 — Basic Scraper Prototype
-> commit hedefi: `feat: basic scraper prototype`
+### Phase 3 — Basic Scraper Prototype `42ef94f`
+> commit: `feat: basic scraper prototype`
 
-- [ ] `src/scraping/scraper.py` — ana scraper sınıfı
-- [ ] `src/scraping/parsers.py` — HTML parser fonksiyonları
-- [ ] Çekilecek alanlar:
-  - `listing_id`, `url`, `title`, `price`
+- [x] `src/scraping/scraper.py` — Selenium-based DolapScraper sınıfı
+  - WebDriver lifecycle (headless Chrome, anti-detection flags)
+  - Cloudflare bypass (real browser rendering)
+  - `crawl_category()` → kategori sayfalarından ilan URL'leri
+  - `scrape_listing()` → tekil ilan detay parse
+  - `scrape_listings_batch()` → toplu scrape + JSONL streaming
+  - `scrape_category()` → end-to-end kategori pipeline
+  - Random delay, retry logic, exponential backoff
+- [x] `src/scraping/parsers.py` — 17 HTML parser fonksiyonu (~400 satır)
+  - `parse_product_detail()` → ana parser (20+ alan)
+  - `parse_listing_urls_from_page()` → kategori sayfası URL extraction
+  - `extract_listing_id_from_url()` → URL'den listing ID
+  - Graceful error handling, `_parse_errors` tracking
+- [x] Çekilecek alanlar:
+  - `listing_id`, `url`, `title`, `price`, `original_price`
   - `brand`, `category`, `subcategory`
   - `size`, `color`, `condition`
-  - `photo_count`, `description_length`, `description_text`
-  - `seller_username`, `seller_rating_count`, `seller_sales_count`
-  - `listing_time` (mümkünse)
-  - `has_discount`, `shipping_info`
-  - `like_count`, `comment_count` (varsa)
-- [ ] Kategori crawler: verilen kategori slug → ilan URL listesi
-- [ ] CSV/JSONL test scrape (~50 ilan)
+  - `photo_count`, `description_length`, `description_text`, `description_word_count`
+  - `seller_username`, `seller_listing_count`
+  - `has_discount`, `shipping_info`, `shipping_buyer_pays`
+  - `like_count`, `comment_count`
+  - `is_sold`, `scraped_at`
+- [x] Kategori crawler: verilen kategori slug → ilan URL listesi
+- [x] `src/scraping/__init__.py` — Public API re-exports
+- [x] `src/pipelines/scrape.py` — Full implementation (skeleton → gerçek)
+  - `--cohort-id`, `--categories`, `--max-pages`, `--dry-run`, `--no-headless`
+  - Cohort dizini oluşturma, JSONL output, `meta.yaml` üretimi
+- [ ] CSV/JSONL test scrape (~50 ilan) → Phase 5'te gerçek cohort ile
 - [ ] Manuel doğrulama: scrape edilen 10 ilan vs site gerçek değerleri
 - [ ] `notebooks/01_scraping_test.ipynb` — scrape sonuçları inceleme
 
 ### Phase 4 — Anti-Ban Protection
 > commit hedefi: `feat: anti-ban protection layer`
+> ℹ️ Bazı maddeler Phase 3'te DolapScraper içinde temel düzeyde implemente edildi.
 
-- [ ] Random User-Agent rotation (10+ farklı UA)
-- [ ] Random request delay (config'den: `min_seconds` / `max_seconds`)
-- [ ] Exponential backoff retry logic (max 3 retry)
-- [ ] Timeout handling (30s default)
+- [x] Random User-Agent rotation (10 farklı UA) — `scraper.py` _USER_AGENTS
+- [x] Random request delay (config'den: `min_seconds` / `max_seconds`) — `scraper.py` `_sleep()`
+- [x] Exponential backoff retry logic (max 3 retry) — `scraper.py` `_navigate()`
+- [x] Timeout handling (30s default) — `scraper.py` `set_page_load_timeout()`
 - [ ] HTTP status code handling (429, 403, 503 → backoff)
 - [ ] Optional: proxy support altyapısı (config'de var, implementasyon)
 - [ ] Optional: cookie/session management
@@ -415,7 +437,7 @@
 | Milestone | Durum | Tamamlanan Phase |
 |-----------|-------|------------------|
 | 🏗️ M0 — Foundation | ✅ Tamamlandı | Phase 0, 0.5, 1 |
-| 🌐 M1 — Data Collection | ⏳ Bekliyor | — |
+| 🌐 M1 — Data Collection | 🔄 Devam Ediyor | Phase 2, 3 |
 | ⏳ M2 — Temporal Labeling | ⏳ Bekliyor | — |
 | 🧹 M3 — Data Processing | ⏳ Bekliyor | — |
 | 🤖 M4 — Modeling | ⏳ Bekliyor | — |
@@ -432,6 +454,8 @@
 | 4 | `3cc0f6b` | `feat: reproducible training pipeline integration` | develop |
 | 5 | `c2f4805` | `merge: sync develop into main (Phase 0 + 0.5)` | main |
 | 6 | `556c8a7` | `merge: sync develop into main (Phase 0.5 Part 2)` | main |
+| 7 | `8bacbfc` | `feat: dolap site reverse engineering` | develop |
+| 8 | `42ef94f` | `feat: basic scraper prototype` | develop |
 
 ## 🏗️ Altyapı Envanteri
 
@@ -457,16 +481,23 @@ configs/
 └── pipeline.yaml       ← paths, logging, database URL, step enable/disable
 ```
 
+### ✅ Scraping Modülü (Phase 2-3)
+```
+src/scraping/
+├── __init__.py         ← Public API re-exports (DolapScraper, parsers)
+├── parsers.py          ← 17 HTML parse fonksiyonu (~400 satır)
+└── scraper.py          ← Selenium-based DolapScraper sınıfı (~330 satır)
+```
+
 ### ⏳ İskelet (Skeleton) — İmplementasyon Bekliyor
 ```
 src/pipelines/
 ├── train.py            ← ✅ TAM İMPLEMENTASYON (experiment lifecycle)
-├── scrape.py           ← ⏳ İskelet (Phase 3-5'te implement edilecek)
+├── scrape.py           ← ✅ TAM İMPLEMENTASYON (Phase 3)
 ├── label.py            ← ⏳ İskelet (Phase 6'da implement edilecek)
 ├── build_dataset.py    ← ⏳ İskelet (Phase 8-9'da implement edilecek)
 └── evaluate.py         ← ⏳ İskelet (Phase 15-17'de implement edilecek)
 
-src/scraping/           ← ⏳ Boş (Phase 2-5)
 src/labeling/           ← ⏳ Boş (Phase 6-7)
 src/preprocessing/      ← ⏳ Boş (Phase 8)
 src/features/           ← ⏳ Boş (Phase 9)
@@ -479,8 +510,9 @@ src/evaluation/         ← ⏳ Boş (Phase 15-17)
 
 ## ⚡ Sonraki Adım
 
-> **Phase 2 — Dolap Site Reverse Engineering**
+> **Phase 4 — Anti-Ban Protection**
 >
-> Dolap.com'un HTML yapısını, pagination mekanizmasını, "Satıldı" badge
-> tespitini ve API endpoint'lerini keşfet. Bu phase'in çıktısı tüm
-> scraping kararlarının temelini oluşturacak.
+> Mevcut scraper'ın rate limiting ve retry mekanizmalarını
+> güçlendir. Proxy desteği, ban tespiti, session yönetimi ekle.
+> Ardından Phase 5 (Snapshot Storage) ile ilk gerçek cohort
+> scrape'ini gerçekleştir.
