@@ -1,0 +1,143 @@
+# ============================================================================
+# Dolap Sale Prediction – .gitignore
+# Senior-grade project ignore rules
+# ============================================================================
+
+# ────────────────────────────────────────────────────────────────────────────
+# DATA – Raw snapshots, processed datasets, labels (large / sensitive)
+# ────────────────────────────────────────────────────────────────────────────
+data/raw_snapshots/*
+data/labels/*
+data/processed/*
+!data/raw_snapshots/.gitkeep
+!data/labels/.gitkeep
+!data/processed/.gitkeep
+
+# ────────────────────────────────────────────────────────────────────────────
+# TRAINED MODELS & ARTIFACTS
+# ────────────────────────────────────────────────────────────────────────────
+models/*
+!models/.gitkeep
+*.pkl
+*.joblib
+*.h5
+*.hdf5
+*.pt
+*.pth
+*.onnx
+*.cbm
+*.bin
+*.model
+
+# ────────────────────────────────────────────────────────────────────────────
+# REPORTS – Generated figures, PDFs, HTML reports
+# ────────────────────────────────────────────────────────────────────────────
+reports/*
+!reports/.gitkeep
+
+# ────────────────────────────────────────────────────────────────────────────
+# JUPYTER NOTEBOOKS – Strip output, keep source
+# ────────────────────────────────────────────────────────────────────────────
+notebooks/.ipynb_checkpoints/
+*.ipynb_checkpoints/
+# Uncomment below to ignore notebook outputs (use nbstripout pre-commit hook instead)
+# notebooks/*.ipynb
+
+# ────────────────────────────────────────────────────────────────────────────
+# PYTHON
+# ────────────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+eggs/
+*.whl
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+.conda/
+*.conda
+conda-meta/
+
+# ────────────────────────────────────────────────────────────────────────────
+# ENVIRONMENT & SECRETS
+# ────────────────────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.yaml
+secrets.json
+
+# ────────────────────────────────────────────────────────────────────────────
+# IDE / EDITOR
+# ────────────────────────────────────────────────────────────────────────────
+.vscode/
+!.vscode/settings.json
+!.vscode/launch.json
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ────────────────────────────────────────────────────────────────────────────
+# OS FILES
+# ────────────────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ────────────────────────────────────────────────────────────────────────────
+# TESTING & COVERAGE
+# ────────────────────────────────────────────────────────────────────────────
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+coverage.xml
+*.cover
+
+# ────────────────────────────────────────────────────────────────────────────
+# LOGS & DATABASES
+# ────────────────────────────────────────────────────────────────────────────
+*.log
+*.sqlite3
+*.db
+
+# ────────────────────────────────────────────────────────────────────────────
+# MISC
+# ────────────────────────────────────────────────────────────────────────────
+*.csv
+*.tsv
+*.parquet
+*.feather
+*.arrow
+*.json
+!configs/*.json
+!configs/**/*.json
+!package.json
+*.xml
+!configs/*.xml
+*.zip
+*.tar.gz
+*.tar.bz2
+*.rar
+*.7z
