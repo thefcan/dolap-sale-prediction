@@ -11,6 +11,7 @@ paths:
   artifacts_models: "artifacts/models"
   artifacts_figures: "artifacts/figures"
   artifacts_metrics: "artifacts/metrics"
+  artifacts_experiments: "artifacts/experiments"
   reports: "reports"
   configs: "configs"
 

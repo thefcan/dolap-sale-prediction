@@ -22,9 +22,11 @@ data/interim/**
 artifacts/models/*
 artifacts/figures/*
 artifacts/metrics/*
+artifacts/experiments/*
 !artifacts/models/.gitkeep
 !artifacts/figures/.gitkeep
 !artifacts/metrics/.gitkeep
+!artifacts/experiments/.gitkeep
 *.pkl
 *.joblib
 *.h5
