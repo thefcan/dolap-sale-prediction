@@ -150,8 +150,8 @@
 - [x] `docs/DOLAP_SITE_MAP.md` — tüm bulguları dokümante et (354 satır, 14 bölüm)
 - [x] Test: 3-5 farklı kategoriden elle 1'er ilan parse et
 
-### Phase 3 — Basic Scraper Prototype `(commit pending)`
-> commit hedefi: `feat: basic scraper prototype`
+### Phase 3 — Basic Scraper Prototype `42ef94f`
+> commit: `feat: basic scraper prototype`
 
 - [x] `src/scraping/scraper.py` — Selenium-based DolapScraper sınıfı
   - WebDriver lifecycle (headless Chrome, anti-detection flags)
@@ -455,7 +455,7 @@
 | 5 | `c2f4805` | `merge: sync develop into main (Phase 0 + 0.5)` | main |
 | 6 | `556c8a7` | `merge: sync develop into main (Phase 0.5 Part 2)` | main |
 | 7 | `8bacbfc` | `feat: dolap site reverse engineering` | develop |
-| 8 | `(pending)` | `feat: basic scraper prototype` | develop |
+| 8 | `42ef94f` | `feat: basic scraper prototype` | develop |
 
 ## 🏗️ Altyapı Envanteri
 
