@@ -1,0 +1,105 @@
+# ============================================================================
+# Dolap Sale Prediction — Model Configuration
+# ============================================================================
+
+# ── Experiment settings ─────────────────────────────────────────────────────
+experiment:
+  seed: 42
+  test_size: 0.15
+  val_size: 0.15                 # from remaining after test split
+  cv_folds: 5
+  stratified: true
+  scoring_metric: "roc_auc"      # primary metric for model selection
+
+# ── Class imbalance handling ────────────────────────────────────────────────
+imbalance:
+  strategy: "class_weight"       # class_weight | smote | undersampling | none
+  smote:
+    sampling_strategy: "auto"
+    k_neighbors: 5
+  class_weight: "balanced"
+
+# ── Baseline: Logistic Regression ───────────────────────────────────────────
+logistic_regression:
+  enabled: true
+  params:
+    C: 1.0
+    max_iter: 1000
+    solver: "lbfgs"
+    class_weight: "balanced"
+
+# ── Random Forest ───────────────────────────────────────────────────────────
+random_forest:
+  enabled: true
+  params:
+    n_estimators: 300
+    max_depth: 12
+    min_samples_split: 10
+    min_samples_leaf: 5
+    class_weight: "balanced"
+
+# ── XGBoost ─────────────────────────────────────────────────────────────────
+xgboost:
+  enabled: true
+  params:
+    n_estimators: 500
+    max_depth: 6
+    learning_rate: 0.05
+    subsample: 0.8
+    colsample_bytree: 0.8
+    reg_alpha: 0.1
+    reg_lambda: 1.0
+    scale_pos_weight: 1          # auto-computed at runtime if set to -1
+    eval_metric: "auc"
+    early_stopping_rounds: 50
+
+# ── LightGBM ───────────────────────────────────────────────────────────────
+lightgbm:
+  enabled: true
+  params:
+    n_estimators: 500
+    max_depth: -1
+    num_leaves: 63
+    learning_rate: 0.05
+    subsample: 0.8
+    colsample_bytree: 0.8
+    reg_alpha: 0.1
+    reg_lambda: 1.0
+    is_unbalance: true
+
+# ── CatBoost ───────────────────────────────────────────────────────────────
+catboost:
+  enabled: true
+  params:
+    iterations: 500
+    depth: 6
+    learning_rate: 0.05
+    auto_class_weights: "Balanced"
+    eval_metric: "AUC"
+    early_stopping_rounds: 50
+    verbose: 100
+
+# ── Hyperparameter tuning (Optuna) ──────────────────────────────────────────
+tuning:
+  enabled: false                 # enable after baseline experiments
+  n_trials: 100
+  timeout_seconds: 3600
+  study_name: "dolap_sale_prediction"
+  direction: "maximize"
+  pruner: "median"
+
+# ── Evaluation ──────────────────────────────────────────────────────────────
+evaluation:
+  metrics:
+    - "roc_auc"
+    - "f1"
+    - "precision"
+    - "recall"
+    - "accuracy"
+    - "average_precision"        # PR-AUC
+  threshold_search:
+    enabled: true
+    method: "f1_maximize"        # f1_maximize | youden_j
+  shap:
+    enabled: true
+    max_display: 20

@@ -11,26 +11,35 @@
 
 ```
 dolap-sale-prediction/
-├── configs/              # YAML / JSON konfigürasyon dosyaları
+├── configs/                # YAML konfigürasyon dosyaları
+│   ├── scraping.yaml       #   Scraper parametreleri
+│   ├── features.yaml       #   Feature engineering tanımları
+│   ├── model.yaml          #   Model hiperparametreleri
+│   └── pipeline.yaml       #   Pipeline orkestrasyon ayarları
 ├── data/
-│   ├── raw_snapshots/    # Ham scrape çıktıları (git-ignored)
-│   ├── labels/           # 7-gün sonrası durum etiketleri (git-ignored)
-│   └── processed/        # Temizlenmiş & feature-engineered veri (git-ignored)
-├── docs/                 # Proje dokümanları & raporlar
-├── models/               # Eğitilmiş model artifact'leri (git-ignored)
-├── notebooks/            # Jupyter notebook'ları (EDA, modelleme)
-├── reports/              # Üretilen figürler, metrikler (git-ignored)
+│   ├── raw_snapshots/      # Cohort bazlı ham scrape çıktıları (git-ignored)
+│   │   └── cohort_YYYYMMDD/
+│   ├── labels/             # 7-gün sonrası satış etiketleri (git-ignored)
+│   ├── interim/            # Ara çıktılar – merge / join sonuçları (git-ignored)
+│   └── processed/          # Final train-ready dataset (git-ignored)
+├── artifacts/
+│   ├── models/             # Eğitilmiş model dosyaları (git-ignored)
+│   ├── figures/            # Üretilen grafikler (git-ignored)
+│   └── metrics/            # JSON/CSV metrik dökümantları (git-ignored)
+├── docs/                   # Proje dokümanları
+├── notebooks/              # Jupyter notebook'ları (EDA, modelleme)
+├── reports/                # Final raporlar (git-ignored)
 ├── src/
-│   ├── scraping/         # Dolap.com web scraper modülleri
-│   ├── labeling/         # 7-gün satış durumu etiketleyici
-│   ├── dataset/          # Veri seti oluşturma & yönetimi
-│   ├── preprocessing/    # Veri temizleme pipeline'ları
-│   ├── features/         # Feature engineering
-│   ├── models/           # Model tanımları & eğitim mantığı
-│   ├── evaluation/       # Değerlendirme metrikleri
-│   ├── pipelines/        # Uçtan uca pipeline orkestrasyon
-│   └── utils/            # Ortak araçlar (config, logging, DB)
-└── tests/                # Birim & entegrasyon testleri
+│   ├── scraping/           # Dolap.com web scraper modülleri
+│   ├── labeling/           # 7-gün satış durumu etiketleyici
+│   ├── dataset/            # Veri seti oluşturma & yönetimi
+│   ├── preprocessing/      # Veri temizleme pipeline'ları
+│   ├── features/           # Feature engineering
+│   ├── models/             # Model tanımları & eğitim mantığı
+│   ├── evaluation/         # Değerlendirme metrikleri & raporlama
+│   ├── pipelines/          # Uçtan uca pipeline entrypoint'leri
+│   └── utils/              # Ortak araçlar (config, logging, DB)
+└── tests/                  # Birim & entegrasyon testleri
 ```
 
 ## Branch Stratejisi

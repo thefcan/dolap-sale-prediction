@@ -1,0 +1,120 @@
+# ============================================================================
+# Dolap Sale Prediction — Feature Engineering Configuration
+# ============================================================================
+
+target:
+  name: "sold_within_7_days"
+  type: "binary"                 # 0 = not sold, 1 = sold
+
+# ── Brand tier mapping ──────────────────────────────────────────────────────
+brand_tiers:
+  tier_1_budget:
+    - "LC Waikiki"
+    - "Defacto"
+    - "Koton"
+    - "Civil"
+    - "Tozlu"
+    - "Penti"
+  tier_2_mid:
+    - "Zara"
+    - "Mango"
+    - "H&M"
+    - "Bershka"
+    - "Stradivarius"
+    - "Pull and Bear"
+    - "Colin's"
+    - "Oysho"
+  tier_3_premium:
+    - "İpekyol"
+    - "Yargıcı"
+    - "Beymen"
+    - "Tommy Hilfiger"
+    - "Lacoste"
+    - "Nike"
+    - "Adidas"
+    - "New Balance"
+  tier_4_designer:
+    - "Michael Kors"
+    - "Coach"
+    - "Kate Spade"
+    - "Guess"
+    - "Ray-Ban"
+    - "Calvin Klein"
+  tier_5_luxury:
+    - "Louis Vuitton"
+    - "Gucci"
+    - "Chanel"
+    - "Prada"
+    - "Burberry"
+    - "Balenciaga"
+    - "Valentino"
+    - "Fendi"
+    - "Dior"
+
+# ── Condition label mapping ─────────────────────────────────────────────────
+condition_mapping:
+  "Yeni & Etiketli": 3
+  "Yeni": 2
+  "Az Kullanılmış": 1
+  "Kullanılmış": 0
+
+# ── Numeric features ────────────────────────────────────────────────────────
+numeric_features:
+  - name: "price"
+    source: "listing"
+    transform: null
+  - name: "price_to_category_median"
+    source: "derived"
+    transform: "ratio"
+  - name: "photo_count"
+    source: "listing"
+    transform: null
+  - name: "description_length"
+    source: "listing"
+    transform: "char_count"
+  - name: "description_word_count"
+    source: "listing"
+    transform: "word_count"
+  - name: "seller_rating_count"
+    source: "seller"
+    transform: null
+  - name: "listing_hour"
+    source: "listing"
+    transform: null
+
+# ── Categorical features ────────────────────────────────────────────────────
+categorical_features:
+  - name: "brand_tier"
+    source: "derived"
+    encoding: "ordinal"          # ordinal | onehot | target
+  - name: "condition"
+    source: "listing"
+    encoding: "ordinal"
+  - name: "category"
+    source: "listing"
+    encoding: "target"
+  - name: "color"
+    source: "listing"
+    encoding: "target"
+  - name: "size"
+    source: "listing"
+    encoding: "target"
+
+# ── Binary features ─────────────────────────────────────────────────────────
+binary_features:
+  - name: "has_discount"
+    source: "listing"
+  - name: "is_weekend_listing"
+    source: "derived"
+  - name: "shipping_buyer_pays"
+    source: "listing"
+
+# ── Text-derived features ──────────────────────────────────────────────────
+text_features:
+  urgency_keywords:
+    - "acil"
+    - "son fiyat"
+    - "bugün"
+    - "indirim"
+    - "fırsat"
+    - "pazarlık"
