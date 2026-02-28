@@ -26,8 +26,6 @@ def set_global_seed(seed: int = 42) -> None:
     - :mod:`numpy`
     - :mod:`sklearn` (via numpy — sklearn has no independent RNG)
     - :mod:`xgboost` (via ``PYTHONHASHSEED`` and numpy seed)
-    - :mod:`lightgbm` (via numpy seed)
-    - :mod:`catboost` (via numpy seed)
     - Hash-based operations (``PYTHONHASHSEED``)
 
     Parameters

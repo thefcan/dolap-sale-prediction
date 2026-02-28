@@ -313,15 +313,13 @@
 - [ ] Baseline sonuçları → experiment dizinine kaydet
 - [ ] İlk karşılaştırma tablosu
 
-### Phase 12 — Advanced Models
-> commit hedefi: `feat: advanced tree models`
+### Phase 12 — XGBoost Deep Dive
+> commit hedefi: `feat: xgboost training`
 
-- [ ] `src/models/tree_models.py` — XGBoost, LightGBM, CatBoost wrapper
+- [ ] `src/models/tree_models.py` — XGBoost wrapper
 - [ ] XGBoost eğitimi (early stopping on val)
-- [ ] LightGBM eğitimi
-- [ ] CatBoost eğitimi (native categorical support)
-- [ ] Val set karşılaştırması
-- [ ] Feature importance (her model için)
+- [ ] Feature importance (gain, weight, cover)
+- [ ] Val set karşılaştırması (vs baseline)
 - [ ] Tüm sonuçlar experiment dizinine
 
 ### Phase 13 — Class Imbalance Handling
@@ -338,9 +336,9 @@
 > commit hedefi: `feat: optuna hyperparameter tuning`
 
 - [ ] `src/models/tuner.py` — Optuna objective fonksiyonları
-- [ ] En iyi 1-2 model için Optuna study (100 trial)
+- [ ] XGBoost Optuna study (100 trial)
 - [ ] Study visualization (parallel coordinate, importance)
-- [ ] Tuned model → final val score
+- [ ] Tuned XGBoost → final val score
 - [ ] Tuning sonuçları → experiment dizinine
 
 ---
@@ -455,7 +453,7 @@ src/utils/
 configs/
 ├── scraping.yaml       ← 12 kategori, rate limiting, labeling kuralları
 ├── features.yaml       ← brand tiers, condition mapping, feature tanımları
-├── model.yaml          ← 5 model config, seed, split oranları, Optuna, evaluation
+└── model.yaml          ← 3 model config (LR, RF, XGB), seed, split oranları, Optuna, evaluation
 └── pipeline.yaml       ← paths, logging, database URL, step enable/disable
 ```
 
