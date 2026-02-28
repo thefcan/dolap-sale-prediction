@@ -1,0 +1,63 @@
+# ============================================================================
+# Dolap Sale Prediction — Scraping Configuration
+# ============================================================================
+
+scraping:
+  base_url: "https://dolap.com"
+  user_agent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+
+  # Rate-limiting
+  delay:
+    min_seconds: 1.5
+    max_seconds: 3.5
+  max_retries: 3
+  retry_backoff_factor: 2.0
+  timeout_seconds: 30
+
+  # Proxy (optional – leave empty to disable)
+  proxy:
+    enabled: false
+    url: ""  # http://user:pass@host:port
+
+  # Pagination
+  max_pages_per_category: 50    # 0 = unlimited
+  items_per_page: 20            # Dolap default
+
+  # Target categories to scrape
+  categories:
+    - slug: "kazak"
+      name: "Kazak"
+    - slug: "elbise"
+      name: "Elbise"
+    - slug: "mont"
+      name: "Mont"
+    - slug: "cizme"
+      name: "Çizme"
+    - slug: "bot"
+      name: "Bot"
+    - slug: "kol-cantasi"
+      name: "Kol Çantası"
+    - slug: "spor-ayakkabi"
+      name: "Spor Ayakkabı"
+    - slug: "jean-pantolon"
+      name: "Jean Pantolon"
+    - slug: "gomlek"
+      name: "Gömlek"
+    - slug: "etek"
+      name: "Etek"
+    - slug: "tshirt"
+      name: "T-Shirt"
+    - slug: "sweatshirt"
+      name: "Sweatshirt"
+
+  # Storage
+  output_format: "jsonl"         # jsonl | csv
+  snapshot_dir: "data/raw_snapshots"
+
+# Labeling — 7-day re-check
+labeling:
+  check_after_days: 7
+  sold_indicators:
+    - "Satıldı"
+  removed_http_codes: [404, 410]
+  output_dir: "data/labels"

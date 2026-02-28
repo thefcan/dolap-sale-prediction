@@ -1,0 +1,55 @@
+# ============================================================================
+# Dolap Sale Prediction — Pipeline Orchestration
+# ============================================================================
+
+# ── Paths ───────────────────────────────────────────────────────────────────
+paths:
+  raw_snapshots: "data/raw_snapshots"
+  labels: "data/labels"
+  interim: "data/interim"
+  processed: "data/processed"
+  artifacts_models: "artifacts/models"
+  artifacts_figures: "artifacts/figures"
+  artifacts_metrics: "artifacts/metrics"
+  reports: "reports"
+  configs: "configs"
+
+# ── Logging ─────────────────────────────────────────────────────────────────
+logging:
+  level: "INFO"                  # DEBUG | INFO | WARNING | ERROR
+  format: "{time:YYYY-MM-DD HH:mm:ss} | {level:<8} | {name}:{function}:{line} - {message}"
+  log_file: "logs/pipeline.log"
+  rotation: "10 MB"
+  retention: "30 days"
+
+# ── Database (scraping state tracking) ──────────────────────────────────────
+database:
+  url: "sqlite:///data/dolap_state.db"
+
+# ── Pipeline steps ──────────────────────────────────────────────────────────
+# Enable/disable individual pipeline stages
+steps:
+  scrape:
+    enabled: true
+    entrypoint: "src.pipelines.scrape"
+    description: "Crawl dolap.com categories and scrape listing details"
+
+  label:
+    enabled: true
+    entrypoint: "src.pipelines.label"
+    description: "Re-check listings after N days and assign sold labels"
+
+  build_dataset:
+    enabled: true
+    entrypoint: "src.pipelines.build_dataset"
+    description: "Merge snapshots + labels, clean, produce interim parquet"
+
+  train:
+    enabled: true
+    entrypoint: "src.pipelines.train"
+    description: "Feature engineering → model training → artifact export"
+
+  evaluate:
+    enabled: true
+    entrypoint: "src.pipelines.evaluate"
+    description: "Load best model, compute metrics, generate SHAP & figures"
