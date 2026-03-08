@@ -1,9 +1,9 @@
 # 📋 Dolap Sale Prediction — Master TODO
 
-> **Son güncelleme:** 2026-03-08
-> **Branch:** `develop`
-> **Durum:** M1 tamamlandı ✅ | Pilot cohort (411 ilan) toplandı → 🎤 **EDA Presentation hazırlığı aktif**
-> **Öncelik:** EDA Sunum Notebook'u (Practical Data Science dersi — 10 dk, İngilizce, Jupyter üzerinden)
+> **Son güncelleme:** 2026-03-08 (EDA notebook tamamlandı)
+> **Branch:** `develop` | **Son commit:** `e750147`
+> **Durum:** M1 ✅ | EDA Notebook ✅ | 🎤 **Prova + görev dağılımı kaldı**
+> **Öncelik:** Step 9 — Presentation Polish & Rehearsal (10 dk prova, takım üyesi dağılımı)
 
 ---
 
@@ -24,8 +24,8 @@
 │  ├── Phase 4   — Anti-Ban Protection                         ✅         │
 │  └── Phase 5   — Snapshot Storage System                     ✅         │
 │                                                                         │
-│  🎤 EDA PRESENTATION (Practical Data Science)               [██████░░] 🟡│
-│  ├── Step 0  — Data Acquisition (scrape + pseudo-label)      ✅ pilot   │
+│  🎤 EDA PRESENTATION (Practical Data Science)               [███████░] 🟡│
+│  ├── Step 0  — Data Acquisition (scrape + pseudo-label)      ✅         │
 │  ├── Step 1  — Notebook Skeleton & Problem Formulation       ✅         │
 │  ├── Step 2  — Data Collection Narrative                     ✅         │
 │  ├── Step 3  — Schema Check & Missing Values                 ✅         │
@@ -34,7 +34,7 @@
 │  ├── Step 6  — Relationships & Correlations                  ✅         │
 │  ├── Step 7  — Feature Engineering Decisions                 ✅         │
 │  ├── Step 8  — Investigation (Data Quality Bugs)             ✅         │
-│  └── Step 9  — Presentation Polish & Rehearsal               🟡 devam  │
+│  └── Step 9  — Presentation Polish & Rehearsal               🟡 prova  │
 │                                                                         │
 │  ⏳ M2 — TEMPORAL LABELING SYSTEM                           [░░░░░░░░] ⏳│
 │  ├── Phase 6   — 7-Day Labeling Mechanism                               │
@@ -193,9 +193,9 @@
 - [x] `src/pipelines/scrape.py` — Full implementation (skeleton → gerçek)
   - `--cohort-id`, `--categories`, `--max-pages`, `--dry-run`, `--no-headless`
   - Cohort dizini oluşturma, JSONL output, `meta.yaml` üretimi
-- [ ] CSV/JSONL test scrape (~50 ilan) → Phase 5'te gerçek cohort ile
-- [ ] Manuel doğrulama: scrape edilen 10 ilan vs site gerçek değerleri
-- [ ] `notebooks/01_scraping_test.ipynb` — scrape sonuçları inceleme
+- [x] CSV/JSONL test scrape → Phase 5'te 411 ilan gerçek cohort ile tamamlandı
+- [ ] Manuel doğrulama: scrape edilen 10 ilan vs site gerçek değerleri → **M2'ye ertelendi**
+- [x] ~~`notebooks/01_scraping_test.ipynb`~~ → `01_eda_presentation.ipynb`'ye merge edildi
 
 ### Phase 4 — Anti-Ban Protection ✅
 > commit hedefi: `feat: anti-ban protection layer`
@@ -211,7 +211,7 @@
 - [x] Cookie/session management — `rate_limiter.py` `SessionManager` sınıfı (save/load/clear cookies, JSON persistence)
 - [x] Rate limiter sınıfı: `src/scraping/rate_limiter.py` — `RateLimiter` (adaptive delay, escalation/de-escalation)
 - [x] Banlama tespiti: ardışık 403/429 → otomatik durma + uyarı logu — `BanDetector` sınıfı + `BanDetectedError` exception
-- [ ] Test: 200 ilan çek, ban yemeden tamamla → Step 0 (EDA Data Acquisition) ile birleştirildi
+- [x] Test: 411 ilan çekildi, ban yemeden tamamlandı (Step 0 pilot cohort)
 
 ### Phase 5 — Snapshot Storage System ✅
 > commit hedefi: `feat: snapshot storage system`
@@ -235,8 +235,8 @@
 > **Şablon:** Classification template (target: `sold_within_7_days`, binary)
 > **Kural:** Tüm takım üyeleri en az 1 bölüm sunmalı | Kod gizli (Show/Hide Code butonu)
 
-### Step 0 — Data Acquisition � PARTIALLY DONE
-> ✅ Pilot cohort toplandı (411 ilan). Genişletme + labeling gerekiyor.
+### Step 0 — Data Acquisition ✅ (pilot scope)
+> ✅ Pilot cohort toplandı (411 ilan). Proxy label oluşturuldu. Genişletme M2'ye ertelendi.
 
 - [x] Selenium + Chrome WebDriver kurulumunu doğrula (Selenium 4.41.0, Chrome 145)
 - [x] Pilot scrape çalıştır — 3 kategori × 2 sayfa (411 ilan):
@@ -247,19 +247,16 @@
   - kazak.jsonl (195), elbise.jsonl (108), mont.jsonl (108), listings.jsonl (411), meta.yaml
   - Field coverage: price, brand, condition, likes, photos %100 dolu
   - Price: 40-12000 TL, avg 523 TL | Likes: 0-123, avg 10.0 | 12 unique seller
-- [ ] Genişletilmiş scrape — kalan 5 kategori (etek, gomlek, tshirt, sweatshirt, pantolon):
-  ```
-  python -m src.pipelines.scrape --cohort-id 20250712_full --max-pages 3 --no-headless
-  ```
-- [ ] **Labeling stratejisi kararı** (7 gün bekleyemiyorsak):
-  - **⚠️ DURUM:** Pilot cohort'ta `is_sold` tüm ilanlar için `False` (0/411) — seller profilleri aktif ilanları gösteriyor
-  - **Seçenek A (İdeal):** 7 gün bekle → Phase 6 labeling → gerçek ground truth
-  - **Seçenek B (Pragmatik):** Engagement-based pseudo-label: `like_count >= threshold` → likely_to_sell
-  - **Seçenek C (Pratik):** Satılmış ürünler bulmak için eski ilanları kontrol et (404 = sold/removed)
-  - **Seçenek D (Son çare):** Sentetik label üret, sunumda açıkça belirt
-- [ ] Seçilen stratejiye göre label dosyası oluştur: `data/labels/cohort_20250712.jsonl`
+- [ ] ~~Genişletilmiş scrape — kalan 5 kategori~~ → **M2'ye ertelendi** (EDA sunumu 3 kategori ile yeterli, Conclusion'da limitation olarak belirtildi)
+- [x] **Labeling stratejisi kararı** → **Seçenek B (Pragmatik) uygulandı:**
+  - ~~**⚠️ DURUM:** Pilot cohort'ta `is_sold` tüm ilanlar için `False` (0/411)~~
+  - ✅ `proxy_sold` = engagement-based label (`like_count >= Q75 per category`)
+  - `src/preprocessing/clean_features.py` içinde üretiliyor → `cohort_20250712_cleaned.csv`
+  - Notebook'ta 6+ yerde açıkça "proxy label" olduğu belirtildi
+  - Gerçek label: M2 Phase 6 (T+7 re-check) ile gelecek
+- [x] ~~Seçilen stratejiye göre label dosyası oluştur~~ → proxy label doğrudan cleaned CSV içinde (`proxy_sold` sütunu)
 - [x] Scrape kalitesi hızlı kontrol: `scripts/validate_cohort.py` ile doğrulandı
-- [ ] JSONL'leri pandas DataFrame'e yükle, temel sanity check (`df.shape`, `df.columns`)
+- [x] JSONL'leri pandas DataFrame'e yükle, temel sanity check → notebook Cell 5 (411×40, 3 kategori)
 
 ### Step 0.5 — Feature Cleaning & Proxy Label (⚠️ HOCA GERİ BİLDİRİMİ)
 > 🔴 Ham veri üzerinden grafik çizmek YANLIŞ — önce veri temizlenmeli.
@@ -283,11 +280,11 @@
   - Sunumda **açıkça** "proxy label" olduğunu belirt
   - Gerçek label: T+7 re-check ile gelecek (Phase 6)
 
-**Eksik Feature'lar (hoca geri bildirimi — not implemented, acknowledged):**
-- [ ] `is_negotiable` — Dolap'ta "fiyata itiraz" butonu. Parser'da yok → sunumda "planned feature" olarak belirt
-- [ ] `listing_date` / `day_of_week` — Dolap ilan tarihi göstermiyor → sunumda "data limitation" olarak belirt
-- [ ] `label_noise` limitation — "Satıldı" label'ı seller-reported, platform-verified değil → methodology'de acknowledge et
-- [ ] `deleted_listings` policy — 404 dönen ilanlar exclude edilecek → methodology'de belirt
+**Eksik Feature'lar (hoca geri bildirimi — acknowledged in notebook):**
+- [x] `is_negotiable` — Notebook Section 4 "Features NOT Available" tablosunda belirtildi
+- [x] `listing_date` / `day_of_week` — Notebook Section 4 + Conclusion "Missing features" olarak belirtildi
+- [x] `label_noise` limitation — Notebook Section 2 "Known Limitations" #1'de acknowledge edildi
+- [x] `deleted_listings` policy — Notebook Section 2 "Known Limitations" #2'de belirtildi
 
 ### Step 1 — Notebook Skeleton & Section 1: Problem Formulation (~1.5 dk sunum) ✅
 > Dosya: `notebooks/01_eda_presentation.ipynb`
@@ -440,40 +437,25 @@
 - [x] **Cell 21 (Markdown) — Investigation Header:**
   - "During our data collection and EDA, we discovered several data quality issues."
   - "We show the raw evidence, explain the root cause, and demonstrate the fix."
-- [ ] **Bug 1 — Price Parsing Inconsistency:**
-  - **Evidence:** `price` sütununda beklenmeyen değerler (0, None, veya çift fiyat parse)
-  - **Root Cause:** `_extract_price()` regex'i "1.299 TL" ve "1,299 TL" formatlarını
-    farklı parse edebiliyor; indirimli ürünlerde original/current fiyat sırası terslenebiliyor
-  - **Fix:** Raw HTML'den kanıt göster → regex düzeltmesi veya fiyat sıralama logic'i
-- [ ] **Bug 2 — Condition Label Inconsistency:**
-  - **Evidence:** `parsers.py` hem "Yeni ve Etiketli" hem "Yeni & Etiketli" arıyor;
-    `features.yaml` sadece "Yeni & Etiketli" mapping'i tanımlıyor
-  - **Root Cause:** Dolap.com farklı sayfalarda farklı format kullanıyor
-  - **Fix:** Normalization fonksiyonu ekle ("ve" → "&" mapping)
-- [ ] **Bug 3 — Color Extraction from URL Slug:**
-  - **Evidence:** `_parse_color()` URL slug'ın 2. segment'ini renk olarak alıyor
-    ama slug yapısı `{brand}-{color}-{category}-...` her zaman tutmuyor
-  - **Root Cause:** Bazı marka adları tire içeriyor (ör: "pull-and-bear-siyah-...")
-  - **Fix:** URL-based yerine HTML-based renk extraction fallback
-- [ ] **Bug 4 — Duplicate Listings:**
-  - **Evidence:** Aynı `listing_id` birden fazla kategoride veya sayfada görünebilir
-  - **Root Cause:** Dolap cross-category listing yapabiliyor
-  - **Fix:** `listing_id` bazlı dedup, ilk görünümü tut
-- [ ] **Bug 5 — Sold Status Detection Ambiguity:**
-  - **Evidence:** Bazı ilanlar 404 dönerken bazıları "Satıldı" badge gösteriyor;
-    bazıları ise satıcı tarafından kaldırılmış (satılmadan)
-  - **Root Cause:** 3 farklı durum var: sold, removed_by_seller, page_expired
-  - **Fix:** Labeling'de 3-class distinction → binary target'a dönüştürürken
-    sadece "confirmed sold" ve "confirmed active" kullan, ambiguous olanları at
-- [ ] **Bug 6 — Brand/Size Field Contamination (⚠️ GERÇEK VERİDE KEŞFEDİLDİ):**
-  - **Evidence:** `brand` = "Zara - S / 36 Beden" → marka + beden birleşik (203 unique ham, 95 temiz)
-  - **Root Cause:** Dolap HTML'de brand ve size bilgisi tek bir element'te birleşik
-  - **Fix:** " - " delimiter ile split → `brand_clean` + `size_extracted` (365/411 size recover edildi)
-- [ ] **Bug 7 — Description Field = Page Title (⚠️ GERÇEK VERİDE KEŞFEDİLDİ):**
-  - **Evidence:** 292/411 kayıtta `description_text` == `title` (parser gerçek açıklamayı çekememiş)
-  - **Root Cause:** description_text aslında `<title>` tag veya meta tag'dan geliyor
-  - **Fix:** `desc_is_placeholder` flag ekle, bu kayıtlarda `description_length` feature'ını güvenilmez say
-- [ ] **Her bug için Cell (Code):** Ham veri kanıtı → before/after gösterimi
+- [x] **Bug 1 — Brand/Size Field Contamination** ⭐ (gerçek veride keşfedildi)
+  - Evidence: 365/411 (%89) brand alanı " - size" içeriyor → notebook Cell 32-33
+  - Fix: `brand_clean` + `size_extracted` split → Before/After bar chart
+- [x] **Bug 2 — Condition Label Inconsistency**
+  - Evidence: "Yeni ve Etiketli" vs "Yeni & Etiketli" → 4→3 unique değer
+  - Fix: Normalization (`clean_features.py`)
+- [x] **Bug 3 — Category Field Empty**
+  - Evidence: 411/411 `category=None` → `category_scraped` kullanıldı
+- [x] **Bug 4 — Description = Page Title** ⭐ (gerçek veride keşfedildi)
+  - Evidence: 311/411 (%76) `description_text == title` → notebook Cell 32
+  - Fix: `desc_is_placeholder` flag eklendi
+- [x] **Bug 5 — is_sold Always False**
+  - Evidence: Tüm 411 ilan `is_sold=False` → proxy_sold oluşturuldu
+- [x] **Bug 6 — Missing Color Values**
+  - Evidence: 0/411 renk bilgisi yok → "Unknown" imputation planlandı
+- [x] **Bug 7 — Keyword Features Low Coverage**
+  - Evidence: `has_flaw_mention=2`, `desc_has_urgency=0` (placeholder desc nedeniyle)
+  - Fix: Acknowledged as limitation, parser fix planned
+- [x] **Her bug için Cell (Code):** Cell 32 (Bug Evidence tablosu) + Cell 33 (Brand Before/After)
 
 ### Step 9 — Presentation Polish & Rehearsal
 
@@ -721,7 +703,7 @@
 |-----------|-------|------------------|
 | 🏗️ M0 — Foundation | ✅ Tamamlandı | Phase 0, 0.5, 1 |
 | 🌐 M1 — Data Collection | ✅ Tamamlandı | Phase 2, 3, 4, 5 |
-| 🎤 **EDA Presentation** | 🟡 **AKTİF — ÖNCELİK** | Step 0 (pilot ✅, genişletme gerekli) |
+| 🎤 **EDA Presentation** | 🟡 **AKTİF — PROVA KALDI** | Step 0-8 ✅, Step 9 prova + görev dağılımı |
 | ⏳ M2 — Temporal Labeling | ⏳ Bekliyor | — |
 | 🧹 M3 — Data Processing | ⏳ Bekliyor (Phase 10 → EDA Pres.) | — |
 | 🤖 M4 — Modeling | ⏳ Bekliyor | — |
@@ -741,6 +723,9 @@
 | 7 | `8bacbfc` | `feat: dolap site reverse engineering` | develop |
 | 8 | `42ef94f` | `feat: basic scraper prototype` | develop |
 | 9 | `b154319` | `feat(M1): complete cohort scraping pipeline with pilot data collection` | develop |
+| 10 | `3141cdb` | `feat(EDA): initial EDA presentation notebook` | develop |
+| 11 | `fdea696` | `chore: whitelist pilot data files for team sharing` | develop |
+| 12 | `e750147` | `feat(EDA): presentation guidelines compliance` | develop |
 
 ## 🏗️ Altyapı Envanteri
 
@@ -786,7 +771,7 @@ src/pipelines/
 └── evaluate.py         ← ⏳ İskelet (Phase 15-17'de implement edilecek)
 
 src/labeling/           ← ⏳ Boş (Phase 6-7)
-src/preprocessing/      ← ⏳ Boş (Phase 8)
+src/preprocessing/      ← ✅ clean_features.py (feature temizleme + proxy label)
 src/features/           ← ⏳ Boş (Phase 9)
 src/dataset/            ← ⏳ Boş (Phase 8)
 src/models/             ← ⏳ Boş (Phase 11-14)
@@ -797,18 +782,13 @@ src/evaluation/         ← ⏳ Boş (Phase 15-17)
 
 ## ⚡ Sonraki Adım
 
-> **� EDA PRESENTATION — Step 0 kısmen tamamlandı, devam ediliyor**
+> **🎤 EDA PRESENTATION — Notebook tamamlandı, prova ve görev dağılımı kaldı**
 >
-> Pilot cohort toplandı (411 ilan, 3 kategori). Sıralama:
+> ✅ Step 0-8 tamamlandı. Notebook 34 cell, tüm hücreler çalıştırıldı (exec 1-20).
 >
-> 1. **ŞİMDİ:** Kalan 5 kategoriyi scrape et → hedef 1000+ ilan (Step 0)
-> 2. **ŞİMDİ:** Labeling stratejisi belirle ve pseudo-label oluştur
->    (is_sold tüm ilanlar için False — engagement-based veya 7-gün re-check gerekli)
-> 3. **SONRA:** Notebook skeleton oluştur (Step 1-2)
-> 4. **SONRA:** Schema + Statistics + Distributions (Step 3-5)
-> 5. **SONRA:** Relationships + Feature Engineering (Step 6-7)
-> 6. **SONRA:** Investigation — veri kalitesi sorunlarını bul ve düzelt (Step 8)
-> 7. **SUNUM ÖNCESİ:** Polish + Rehearsal (Step 9)
+> 1. **ŞİMDİ:** Takım üyesi görev dağılımı (Step 9)
+> 2. **ŞİMDİ:** 10 dakika prova — zamanlama kontrolü
+> 3. **SONRA (M2):** Genişletilmiş scrape (5 ek kategori) + temporal labeling (7 gün re-check)
 >
-> ✅ M0 Foundation ve M1 Data Collection tamamlandı.
-> 📊 Pilot veri: 411 ilan | 3 kategori | 12 satıcı | %100 field coverage
+> ✅ M0 Foundation + M1 Data Collection tamamlandı.
+> 📊 Pilot veri: 411 ilan | 3 kategori | 12 satıcı | proxy_sold %26.5 positive
