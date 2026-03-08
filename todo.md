@@ -261,6 +261,34 @@
 - [x] Scrape kalitesi hızlı kontrol: `scripts/validate_cohort.py` ile doğrulandı
 - [ ] JSONL'leri pandas DataFrame'e yükle, temel sanity check (`df.shape`, `df.columns`)
 
+### Step 0.5 — Feature Cleaning & Proxy Label (⚠️ HOCA GERİ BİLDİRİMİ)
+> 🔴 Ham veri üzerinden grafik çizmek YANLIŞ — önce veri temizlenmeli.
+> Hoca: "features ve yapılan grafikler yanlış olmuş, grafik yanlışı demek veri üzerinde ekstra çalışmak demek"
+
+**Feature Temizleme (grafik çizmeden ÖNCE yapılmalı):**
+- [ ] `brand` alanını split et → `brand_clean` + `size_extracted` ("Zara - S / 36 Beden" → brand="Zara", size="S / 36 Beden")
+- [ ] `condition` normalize et ("Yeni ve Etiketli" → "Yeni & Etiketli")
+- [ ] `category` = None → `category_scraped` kullan
+- [ ] `description_text` == `title` olan kayıtları flag'le (`desc_is_placeholder = True`)
+- [ ] `brand_tier` oluştur — **DATA-DRIVEN** (hoca: manuel değil, median fiyat bazlı)
+  - Marka başına median listing price hesapla → quantile bazlı 5 tier
+- [ ] `has_flaw_mention` feature ekle — keyword: "leke", "yırtık", "bozuk", "hafif", "küçük kusur"
+- [ ] `desc_has_urgency_keyword` feature ekle — keyword: "acil", "son fiyat", "fırsat", "pazarlık"
+- [ ] `price_to_category_median` türet (fiyat / kategori median fiyatı)
+
+**Proxy Label (target variable — 7 gün bekleyemiyoruz):**
+- [ ] Engagement-based proxy target oluştur:
+  - `like_count >= median + 1σ` AND `price < category_median` → `proxy_sold = 1`
+  - Aksi → `proxy_sold = 0`
+  - Sunumda **açıkça** "proxy label" olduğunu belirt
+  - Gerçek label: T+7 re-check ile gelecek (Phase 6)
+
+**Eksik Feature'lar (hoca geri bildirimi — not implemented, acknowledged):**
+- [ ] `is_negotiable` — Dolap'ta "fiyata itiraz" butonu. Parser'da yok → sunumda "planned feature" olarak belirt
+- [ ] `listing_date` / `day_of_week` — Dolap ilan tarihi göstermiyor → sunumda "data limitation" olarak belirt
+- [ ] `label_noise` limitation — "Satıldı" label'ı seller-reported, platform-verified değil → methodology'de acknowledge et
+- [ ] `deleted_listings` policy — 404 dönen ilanlar exclude edilecek → methodology'de belirt
+
 ### Step 1 — Notebook Skeleton & Section 1: Problem Formulation (~1.5 dk sunum)
 > Dosya: `notebooks/01_eda_presentation.ipynb`
 
@@ -276,6 +304,12 @@
   - Why it matters: Helps sellers optimize pricing, photo count, description quality
   - Domain context: Dolap.com = Turkey's largest second-hand fashion platform (owned by Trendyol)
   - Novelty: First ML study on Dolap.com (confirmed via Google Scholar search)
+- [ ] **Cell 2b (Markdown) — Hypotheses (⚠️ HOCA İSTEDİ — "exploration değil science"):**
+  - **H1:** Listings priced below category median → significantly higher P(sold within 7 days)
+  - **H2:** Listings with ≥3 photos → sell faster than single-photo listings, independent of price
+  - **H3:** Seller listing count (experience proxy) → stronger predictor than price in competitive categories
+  - **H4:** Listings with flaw mentions in description → sell significantly slower than comparable listings
+  - Her hipotez EDA boyunca test edilecek ve Step 6'da sonuçları raporlanacak
 
 ### Step 2 — Section 2: Data Collection (~1.5 dk sunum)
 
@@ -290,9 +324,12 @@
   - Cohort-based collection strategy
   - ETL decisions: JSONL streaming output, one file per category per cohort
 - [ ] **Cell 5 (Code) — Target Distribution:**
-  - `sold_within_7_days` value_counts bar chart
+  - `sold_within_7_days` (veya `proxy_sold`) value_counts bar chart
   - Class balance ratio hesapla ve yorumla
-  - Eğer pseudo-label kullanıldıysa bunu açıkça belirt
+  - ⚠️ Hoca: "%75-80 not-sold beklenir → accuracy metric kullanma"
+  - Primary metric: ROC-AUC | Secondary: F1-score
+  - class_weight='balanced' baseline olarak planlandı
+  - Eğer pseudo-label kullanıldıysa bunu açıkça belirt: "Proxy label — real label via T+7 re-check"
 
 ### Step 3 — Section 3.1: Schema Check & Missing Values (~1 dk sunum)
 
@@ -383,12 +420,14 @@
   | Outlier | `price` top 1% clip | Extreme luxury items distort model |
   | Outlier | `like_count` top 1% clip | Viral outliers |
   | Encoding | `condition` → ordinal (0-3) | Natural order: Kullanılmış < Az Kullanılmış < Yeni < Yeni & Etiketli |
-  | Encoding | `brand` → 5-tier ordinal (Budget→Luxury) | Reduces 100+ brands to 5 tiers |
+  | Encoding | `brand` → 5-tier ordinal (Budget→Luxury) **DATA-DRIVEN** | Median price per brand → quantile tiers (hoca: "objective and reproducible") |
   | Encoding | `category`, `color` → target encoding | High cardinality → target-based numeric |
   | Scaling | StandardScaler for LR, none for tree models | LR is distance-based |
   | New Feature | `price_to_category_median` | Relative pricing within category |
   | New Feature | `desc_has_urgency_keyword` | Urgency words: "acil", "son fiyat", "fırsat" |
-  | New Feature | `listing_hour`, `is_weekend_listing` | Temporal patterns in buyer behavior |
+  | New Feature | `has_flaw_mention` | Flaw words: "leke", "yırtık", "bozuk", "hafif kusur" (hoca önerisi) |
+  | Limitation | `listing_hour`, `day_of_week` | ⚠️ Dolap ilan tarihi göstermiyor — scrape_at kullanılamaz |
+  | Planned | `is_negotiable` | ⚠️ Parser'da yok — gelecek iteration'da eklenecek |
 - [ ] **Cell 20 (Code) — Feature Engineering Code:**
   - Brand tier mapping (configs/features.yaml'dan)
   - Condition ordinal encoding
@@ -426,6 +465,14 @@
   - **Root Cause:** 3 farklı durum var: sold, removed_by_seller, page_expired
   - **Fix:** Labeling'de 3-class distinction → binary target'a dönüştürürken
     sadece "confirmed sold" ve "confirmed active" kullan, ambiguous olanları at
+- [ ] **Bug 6 — Brand/Size Field Contamination (⚠️ GERÇEK VERİDE KEŞFEDİLDİ):**
+  - **Evidence:** `brand` = "Zara - S / 36 Beden" → marka + beden birleşik (203 unique ham, 95 temiz)
+  - **Root Cause:** Dolap HTML'de brand ve size bilgisi tek bir element'te birleşik
+  - **Fix:** " - " delimiter ile split → `brand_clean` + `size_extracted` (365/411 size recover edildi)
+- [ ] **Bug 7 — Description Field = Page Title (⚠️ GERÇEK VERİDE KEŞFEDİLDİ):**
+  - **Evidence:** 292/411 kayıtta `description_text` == `title` (parser gerçek açıklamayı çekememiş)
+  - **Root Cause:** description_text aslında `<title>` tag veya meta tag'dan geliyor
+  - **Fix:** `desc_is_placeholder` flag ekle, bu kayıtlarda `description_length` feature'ını güvenilmez say
 - [ ] **Her bug için Cell (Code):** Ham veri kanıtı → before/after gösterimi
 
 ### Step 9 — Presentation Polish & Rehearsal
