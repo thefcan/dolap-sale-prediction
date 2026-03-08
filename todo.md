@@ -463,20 +463,17 @@
   - HTML/JS toggle button ile implemente edildi (nbextension yerine)
   - Tüm code cell'leri varsayılan olarak gizle
   - Sunum sırasında "Show Code" butonu ile isteğe bağlı göster
-- [ ] **Takım üyesi görev dağılımı:**
-  | Üye | Bölüm | Süre |
-  |-----|-------|------|
-  | Üye 1 | Section 1 (Problem) + Section 2 (Data Collection) | ~3 dk |
-  | Üye 2 | Section 3.1-3.2 (Schema + Statistics) | ~2 dk |
-  | Üye 3 | Section 3.3-3.4 (Distributions + Relationships) | ~2.5 dk |
-  | Üye 4 | Section 4 (Feature Eng.) + Investigation (Bugs) | ~2.5 dk |
+- [x] **Takım üyesi görev dağılımı (3 kişi × 10 dk):**
+  | Üye | Bölüm | Cell'ler | Süre |
+  |-----|-------|----------|------|
+  | **Furkan** | S1 Problem + S2 Data Collection + Target Dist. | Cell 1-6 | ~3 dk |
+  | **Utku** | S3.1 Schema + S3.2 Stats + S3.3 Distributions | Cell 7-20 | ~3.5 dk |
+  | **Halil** | S3.4 Correlations + Hypotheses + S4 Feature Eng. + Investigation + Conclusion | Cell 21-34 | ~3.5 dk |
 - [x] **Tüm slide'lar İngilizce** — Türkçe terim varsa parantez içinde
 - [ ] **10 dakika prova** — zamanlama kontrolü
 - [ ] **Yedek slide'lar:** Sorulabilecek sorular için ekstra grafikler hazırla
-  - Model seçim gerekçesi (LR / RF / XGBoost)
-  - 7-gün labeling mekanizması detay diyagramı
-  - Cloudflare bypass teknik detayları
 - [x] Final notebook commit: `feat: EDA presentation notebook`
+- [ ] Prova rehberi → `docs/PRESENTATION_GUIDE.md`
 
 ---
 
