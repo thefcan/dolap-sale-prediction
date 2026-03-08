@@ -1,9 +1,9 @@
 # 📋 Dolap Sale Prediction — Master TODO
 
-> **Son güncelleme:** 2026-03-08
-> **Branch:** `develop`
-> **Durum:** M1 tamamlandı ✅ | Pilot cohort (411 ilan) toplandı → 🎤 **EDA Presentation hazırlığı aktif**
-> **Öncelik:** EDA Sunum Notebook'u (Practical Data Science dersi — 10 dk, İngilizce, Jupyter üzerinden)
+> **Son güncelleme:** 2026-03-08 (EDA notebook tamamlandı)
+> **Branch:** `develop` | **Son commit:** `e750147`
+> **Durum:** M1 ✅ | EDA Notebook ✅ | 🎤 **Prova + görev dağılımı kaldı**
+> **Öncelik:** Step 9 — Presentation Polish & Rehearsal (10 dk prova, takım üyesi dağılımı)
 
 ---
 
@@ -24,17 +24,17 @@
 │  ├── Phase 4   — Anti-Ban Protection                         ✅         │
 │  └── Phase 5   — Snapshot Storage System                     ✅         │
 │                                                                         │
-│  🎤 EDA PRESENTATION (Practical Data Science)               [██░░░░░░] 🟡│
-│  ├── Step 0  — Data Acquisition (scrape + pseudo-label)      ✅ pilot   │
-│  ├── Step 1  — Notebook Skeleton & Problem Formulation                  │
-│  ├── Step 2  — Data Collection Narrative                                │
-│  ├── Step 3  — Schema Check & Missing Values                            │
-│  ├── Step 4  — Descriptive Statistics                                   │
-│  ├── Step 5  — Feature Distributions                                    │
-│  ├── Step 6  — Relationships & Correlations                             │
-│  ├── Step 7  — Feature Engineering Decisions                            │
-│  ├── Step 8  — Investigation (Data Quality Bugs)                        │
-│  └── Step 9  — Presentation Polish & Rehearsal                          │
+│  🎤 EDA PRESENTATION (Practical Data Science)               [███████░] 🟡│
+│  ├── Step 0  — Data Acquisition (scrape + pseudo-label)      ✅         │
+│  ├── Step 1  — Notebook Skeleton & Problem Formulation       ✅         │
+│  ├── Step 2  — Data Collection Narrative                     ✅         │
+│  ├── Step 3  — Schema Check & Missing Values                 ✅         │
+│  ├── Step 4  — Descriptive Statistics                        ✅         │
+│  ├── Step 5  — Feature Distributions                         ✅         │
+│  ├── Step 6  — Relationships & Correlations                  ✅         │
+│  ├── Step 7  — Feature Engineering Decisions                 ✅         │
+│  ├── Step 8  — Investigation (Data Quality Bugs)             ✅         │
+│  └── Step 9  — Presentation Polish & Rehearsal               🟡 prova  │
 │                                                                         │
 │  ⏳ M2 — TEMPORAL LABELING SYSTEM                           [░░░░░░░░] ⏳│
 │  ├── Phase 6   — 7-Day Labeling Mechanism                               │
@@ -193,9 +193,9 @@
 - [x] `src/pipelines/scrape.py` — Full implementation (skeleton → gerçek)
   - `--cohort-id`, `--categories`, `--max-pages`, `--dry-run`, `--no-headless`
   - Cohort dizini oluşturma, JSONL output, `meta.yaml` üretimi
-- [ ] CSV/JSONL test scrape (~50 ilan) → Phase 5'te gerçek cohort ile
-- [ ] Manuel doğrulama: scrape edilen 10 ilan vs site gerçek değerleri
-- [ ] `notebooks/01_scraping_test.ipynb` — scrape sonuçları inceleme
+- [x] CSV/JSONL test scrape → Phase 5'te 411 ilan gerçek cohort ile tamamlandı
+- [ ] Manuel doğrulama: scrape edilen 10 ilan vs site gerçek değerleri → **M2'ye ertelendi**
+- [x] ~~`notebooks/01_scraping_test.ipynb`~~ → `01_eda_presentation.ipynb`'ye merge edildi
 
 ### Phase 4 — Anti-Ban Protection ✅
 > commit hedefi: `feat: anti-ban protection layer`
@@ -211,7 +211,7 @@
 - [x] Cookie/session management — `rate_limiter.py` `SessionManager` sınıfı (save/load/clear cookies, JSON persistence)
 - [x] Rate limiter sınıfı: `src/scraping/rate_limiter.py` — `RateLimiter` (adaptive delay, escalation/de-escalation)
 - [x] Banlama tespiti: ardışık 403/429 → otomatik durma + uyarı logu — `BanDetector` sınıfı + `BanDetectedError` exception
-- [ ] Test: 200 ilan çek, ban yemeden tamamla → Step 0 (EDA Data Acquisition) ile birleştirildi
+- [x] Test: 411 ilan çekildi, ban yemeden tamamlandı (Step 0 pilot cohort)
 
 ### Phase 5 — Snapshot Storage System ✅
 > commit hedefi: `feat: snapshot storage system`
@@ -235,8 +235,8 @@
 > **Şablon:** Classification template (target: `sold_within_7_days`, binary)
 > **Kural:** Tüm takım üyeleri en az 1 bölüm sunmalı | Kod gizli (Show/Hide Code butonu)
 
-### Step 0 — Data Acquisition � PARTIALLY DONE
-> ✅ Pilot cohort toplandı (411 ilan). Genişletme + labeling gerekiyor.
+### Step 0 — Data Acquisition ✅ (pilot scope)
+> ✅ Pilot cohort toplandı (411 ilan). Proxy label oluşturuldu. Genişletme M2'ye ertelendi.
 
 - [x] Selenium + Chrome WebDriver kurulumunu doğrula (Selenium 4.41.0, Chrome 145)
 - [x] Pilot scrape çalıştır — 3 kategori × 2 sayfa (411 ilan):
@@ -247,56 +247,53 @@
   - kazak.jsonl (195), elbise.jsonl (108), mont.jsonl (108), listings.jsonl (411), meta.yaml
   - Field coverage: price, brand, condition, likes, photos %100 dolu
   - Price: 40-12000 TL, avg 523 TL | Likes: 0-123, avg 10.0 | 12 unique seller
-- [ ] Genişletilmiş scrape — kalan 5 kategori (etek, gomlek, tshirt, sweatshirt, pantolon):
-  ```
-  python -m src.pipelines.scrape --cohort-id 20250712_full --max-pages 3 --no-headless
-  ```
-- [ ] **Labeling stratejisi kararı** (7 gün bekleyemiyorsak):
-  - **⚠️ DURUM:** Pilot cohort'ta `is_sold` tüm ilanlar için `False` (0/411) — seller profilleri aktif ilanları gösteriyor
-  - **Seçenek A (İdeal):** 7 gün bekle → Phase 6 labeling → gerçek ground truth
-  - **Seçenek B (Pragmatik):** Engagement-based pseudo-label: `like_count >= threshold` → likely_to_sell
-  - **Seçenek C (Pratik):** Satılmış ürünler bulmak için eski ilanları kontrol et (404 = sold/removed)
-  - **Seçenek D (Son çare):** Sentetik label üret, sunumda açıkça belirt
-- [ ] Seçilen stratejiye göre label dosyası oluştur: `data/labels/cohort_20250712.jsonl`
+- [ ] ~~Genişletilmiş scrape — kalan 5 kategori~~ → **M2'ye ertelendi** (EDA sunumu 3 kategori ile yeterli, Conclusion'da limitation olarak belirtildi)
+- [x] **Labeling stratejisi kararı** → **Seçenek B (Pragmatik) uygulandı:**
+  - ~~**⚠️ DURUM:** Pilot cohort'ta `is_sold` tüm ilanlar için `False` (0/411)~~
+  - ✅ `proxy_sold` = engagement-based label (`like_count >= Q75 per category`)
+  - `src/preprocessing/clean_features.py` içinde üretiliyor → `cohort_20250712_cleaned.csv`
+  - Notebook'ta 6+ yerde açıkça "proxy label" olduğu belirtildi
+  - Gerçek label: M2 Phase 6 (T+7 re-check) ile gelecek
+- [x] ~~Seçilen stratejiye göre label dosyası oluştur~~ → proxy label doğrudan cleaned CSV içinde (`proxy_sold` sütunu)
 - [x] Scrape kalitesi hızlı kontrol: `scripts/validate_cohort.py` ile doğrulandı
-- [ ] JSONL'leri pandas DataFrame'e yükle, temel sanity check (`df.shape`, `df.columns`)
+- [x] JSONL'leri pandas DataFrame'e yükle, temel sanity check → notebook Cell 5 (411×40, 3 kategori)
 
 ### Step 0.5 — Feature Cleaning & Proxy Label (⚠️ HOCA GERİ BİLDİRİMİ)
 > 🔴 Ham veri üzerinden grafik çizmek YANLIŞ — önce veri temizlenmeli.
 > Hoca: "features ve yapılan grafikler yanlış olmuş, grafik yanlışı demek veri üzerinde ekstra çalışmak demek"
 
 **Feature Temizleme (grafik çizmeden ÖNCE yapılmalı):**
-- [ ] `brand` alanını split et → `brand_clean` + `size_extracted` ("Zara - S / 36 Beden" → brand="Zara", size="S / 36 Beden")
-- [ ] `condition` normalize et ("Yeni ve Etiketli" → "Yeni & Etiketli")
-- [ ] `category` = None → `category_scraped` kullan
-- [ ] `description_text` == `title` olan kayıtları flag'le (`desc_is_placeholder = True`)
-- [ ] `brand_tier` oluştur — **DATA-DRIVEN** (hoca: manuel değil, median fiyat bazlı)
+- [x] `brand` alanını split et → `brand_clean` + `size_extracted` ("Zara - S / 36 Beden" → brand="Zara", size="S / 36 Beden")
+- [x] `condition` normalize et ("Yeni ve Etiketli" → "Yeni & Etiketli")
+- [x] `category` = None → `category_scraped` kullan
+- [x] `description_text` == `title` olan kayıtları flag'le (`desc_is_placeholder = True`)
+- [x] `brand_tier` oluştur — **DATA-DRIVEN** (hoca: manuel değil, median fiyat bazlı)
   - Marka başına median listing price hesapla → quantile bazlı 5 tier
-- [ ] `has_flaw_mention` feature ekle — keyword: "leke", "yırtık", "bozuk", "hafif", "küçük kusur"
-- [ ] `desc_has_urgency_keyword` feature ekle — keyword: "acil", "son fiyat", "fırsat", "pazarlık"
-- [ ] `price_to_category_median` türet (fiyat / kategori median fiyatı)
+- [x] `has_flaw_mention` feature ekle — keyword: "leke", "yırtık", "bozuk", "hafif", "küçük kusur"
+- [x] `desc_has_urgency_keyword` feature ekle — keyword: "acil", "son fiyat", "fırsat", "pazarlık"
+- [x] `price_to_category_median` türet (fiyat / kategori median fiyatı)
 
 **Proxy Label (target variable — 7 gün bekleyemiyoruz):**
-- [ ] Engagement-based proxy target oluştur:
+- [x] Engagement-based proxy target oluştur:
   - `like_count >= median + 1σ` AND `price < category_median` → `proxy_sold = 1`
   - Aksi → `proxy_sold = 0`
   - Sunumda **açıkça** "proxy label" olduğunu belirt
   - Gerçek label: T+7 re-check ile gelecek (Phase 6)
 
-**Eksik Feature'lar (hoca geri bildirimi — not implemented, acknowledged):**
-- [ ] `is_negotiable` — Dolap'ta "fiyata itiraz" butonu. Parser'da yok → sunumda "planned feature" olarak belirt
-- [ ] `listing_date` / `day_of_week` — Dolap ilan tarihi göstermiyor → sunumda "data limitation" olarak belirt
-- [ ] `label_noise` limitation — "Satıldı" label'ı seller-reported, platform-verified değil → methodology'de acknowledge et
-- [ ] `deleted_listings` policy — 404 dönen ilanlar exclude edilecek → methodology'de belirt
+**Eksik Feature'lar (hoca geri bildirimi — acknowledged in notebook):**
+- [x] `is_negotiable` — Notebook Section 4 "Features NOT Available" tablosunda belirtildi
+- [x] `listing_date` / `day_of_week` — Notebook Section 4 + Conclusion "Missing features" olarak belirtildi
+- [x] `label_noise` limitation — Notebook Section 2 "Known Limitations" #1'de acknowledge edildi
+- [x] `deleted_listings` policy — Notebook Section 2 "Known Limitations" #2'de belirtildi
 
-### Step 1 — Notebook Skeleton & Section 1: Problem Formulation (~1.5 dk sunum)
+### Step 1 — Notebook Skeleton & Section 1: Problem Formulation (~1.5 dk sunum) ✅
 > Dosya: `notebooks/01_eda_presentation.ipynb`
 
-- [ ] Notebook oluştur: `notebooks/01_eda_presentation.ipynb`
-- [ ] **Cell 1 (Markdown) — Title Slide:**
+- [x] Notebook oluştur: `notebooks/01_eda_presentation.ipynb`
+- [x] **Cell 1 (Markdown) — Title Slide:**
   - Proje adı: "Dolap Second-Hand Fashion Sale Prediction"
   - Takım üyeleri, tarih, ders adı
-- [ ] **Cell 2 (Markdown) — Problem Formulation:**
+- [x] **Cell 2 (Markdown) — Problem Formulation:**
   - Business objective: "Predict whether a Dolap.com listing will sell within 7 days"
   - ML problem type: Binary Classification
   - Target variable: `sold_within_7_days` (0 = not sold, 1 = sold)
@@ -304,26 +301,26 @@
   - Why it matters: Helps sellers optimize pricing, photo count, description quality
   - Domain context: Dolap.com = Turkey's largest second-hand fashion platform (owned by Trendyol)
   - Novelty: First ML study on Dolap.com (confirmed via Google Scholar search)
-- [ ] **Cell 2b (Markdown) — Hypotheses (⚠️ HOCA İSTEDİ — "exploration değil science"):**
+- [x] **Cell 2b (Markdown) — Hypotheses (⚠️ HOCA İSTEDİ — "exploration değil science"):**
   - **H1:** Listings priced below category median → significantly higher P(sold within 7 days)
   - **H2:** Listings with ≥3 photos → sell faster than single-photo listings, independent of price
   - **H3:** Seller listing count (experience proxy) → stronger predictor than price in competitive categories
   - **H4:** Listings with flaw mentions in description → sell significantly slower than comparable listings
   - Her hipotez EDA boyunca test edilecek ve Step 6'da sonuçları raporlanacak
 
-### Step 2 — Section 2: Data Collection (~1.5 dk sunum)
+### Step 2 — Section 2: Data Collection (~1.5 dk sunum) ✅
 
-- [ ] **Cell 3 (Code) — Load Data:**
+- [x] **Cell 3 (Code) — Load Data:**
   - JSONL dosyalarını oku → tek DataFrame'e birleştir
   - `df.shape`, `df.columns` göster
-- [ ] **Cell 4 (Markdown) — Data Source Explanation:**
+- [x] **Cell 4 (Markdown) — Data Source Explanation:**
   - Data source: Dolap.com (Selenium web scraping — Cloudflare WAF bypass required)
   - 12 target categories (kazak, elbise, mont, çizme, bot, kol çantası, ...)
   - Temporal labeling mechanism: T=0 scrape → T+7 days re-check → sold/not-sold label
   - 20+ raw features per listing
   - Cohort-based collection strategy
   - ETL decisions: JSONL streaming output, one file per category per cohort
-- [ ] **Cell 5 (Code) — Target Distribution:**
+- [x] **Cell 5 (Code) — Target Distribution:**
   - `sold_within_7_days` (veya `proxy_sold`) value_counts bar chart
   - Class balance ratio hesapla ve yorumla
   - ⚠️ Hoca: "%75-80 not-sold beklenir → accuracy metric kullanma"
@@ -331,15 +328,15 @@
   - class_weight='balanced' baseline olarak planlandı
   - Eğer pseudo-label kullanıldıysa bunu açıkça belirt: "Proxy label — real label via T+7 re-check"
 
-### Step 3 — Section 3.1: Schema Check & Missing Values (~1 dk sunum)
+### Step 3 — Section 3.1: Schema Check & Missing Values (~1 dk sunum) ✅
 
-- [ ] **Cell 6 (Code) — Data Types & Info:**
+- [x] **Cell 6 (Code) — Data Types & Info:**
   - `df.info()` özet tablosu
   - Sütun adları, non-null sayıları, dtypes
-- [ ] **Cell 7 (Code) — Missing Value Audit:**
+- [x] **Cell 7 (Code) — Missing Value Audit:**
   - `df.isnull().sum().sort_values(ascending=False)` bar chart
   - Missing value yüzdeleri tablosu (heatmap veya bar)
-- [ ] **Cell 8 (Markdown) — Missing Value Açıklaması:**
+- [x] **Cell 8 (Markdown) — Missing Value Açıklaması:**
   - `original_price` → NaN if no discount (not random — conditional missingness)
   - `size` → NaN for non-clothing categories (bags, accessories — structurally absent)
   - `color` → URL slug parse failure or rare/unrecognized colors
@@ -347,12 +344,12 @@
   - `subcategory` / `category` → Breadcrumb parsing may fail on some pages
   - Her alan için karar: drop / impute (median, mode, "unknown") / flag as feature
 
-### Step 4 — Section 3.2: Descriptive Statistics (~1 dk sunum)
+### Step 4 — Section 3.2: Descriptive Statistics (~1 dk sunum) ✅
 
-- [ ] **Cell 9 (Code) — Statistics Table:**
+- [x] **Cell 9 (Code) — Statistics Table:**
   - `df.describe()` — styled table (transpose for readability)
   - `df.describe(include='object')` — kategorik sütunlar
-- [ ] **Cell 10 (Markdown) — Suspicious Values Commentary:**
+- [x] **Cell 10 (Markdown) — Suspicious Values Commentary:**
   - `price` min → 0 veya çok düşük değer varsa: hata mı gerçek mi?
   - `price` max → aşırı yüksek outlier'lar (lüks markalar vs parse hatası)
   - `photo_count` = 0 → parse hatası mı yoksa gerçekten fotoğrafsız ilan mı?
@@ -361,9 +358,9 @@
   - `seller_listing_count` aşırı yüksek → profesyonel satıcı mı?
   - Her şüpheli değer için: "error or real" kararını domain bilgisiyle açıkla
 
-### Step 5 — Section 3.3: Feature Distributions (~1.5 dk sunum)
+### Step 5 — Section 3.3: Feature Distributions (~1.5 dk sunum) ✅
 
-- [ ] **Cell 11 (Code) — Numeric Feature Histograms:**
+- [x] **Cell 11 (Code) — Numeric Feature Histograms:**
   - `price` histogram → sağa çarpık (right-skewed) beklentisi → log transform notu
   - `photo_count` histogram → çoğu 3-5 arası beklentisi
   - `description_length` histogram
@@ -371,47 +368,47 @@
   - `like_count` histogram → power-law dağılım beklentisi
   - `comment_count` histogram
   - Her histogram için: skewness yorumu, transform gereksinimi notu
-- [ ] **Cell 12 (Code) — Categorical Feature Bar Charts:**
+- [x] **Cell 12 (Code) — Categorical Feature Bar Charts:**
   - `condition` dağılımı (Yeni & Etiketli / Az Kullanılmış / ...)
   - `brand` top-20 bar chart (veya `brand_tier` eğer türetildiyse)
   - `category` dağılımı
   - `color` dağılımı (top-15)
   - `has_discount` pie/bar chart
   - `shipping_buyer_pays` dağılımı
-- [ ] **Cell 13 (Code) — Class-Conditional Distributions:**
+- [x] **Cell 13 (Code) — Class-Conditional Distributions:**
   - `price` histogram: `sold=0` vs `sold=1` overlay
   - `photo_count`: sold vs not-sold comparison
   - `like_count`: sold vs not-sold comparison
   - `description_length`: sold vs not-sold comparison
   - Hangi feature'lar net separation gösteriyor? → Predictive power ipucu
-- [ ] **Cell 14 (Code) — Log Transform Before/After (eğer gerekli):**
+- [x] **Cell 14 (Code) — Log Transform Before/After (eğer gerekli):**
   - `price` raw vs `log(price)` side-by-side histogram
   - Skewness değeri before/after
 
-### Step 6 — Section 3.4: Relationships & Correlations (~1.5 dk sunum)
+### Step 6 — Section 3.4: Relationships & Correlations (~1.5 dk sunum) ✅
 
-- [ ] **Cell 15 (Code) — Correlation Heatmap:**
+- [x] **Cell 15 (Code) — Correlation Heatmap:**
   - Tüm numerik features + target arası Pearson correlation
   - `seaborn.heatmap` annotated, mask upper triangle
   - Top 3 target-correlated feature'ları highlight et
-- [ ] **Cell 16 (Code) — Top Predictive Features Deep Dive:**
+- [x] **Cell 16 (Code) — Top Predictive Features Deep Dive:**
   - Scatter/box plot: `price` vs `sold_within_7_days`
   - Bar chart: `photo_count` vs satış oranı (binned)
   - Bar chart: `brand_tier` vs satış oranı
   - Bar chart: `condition` vs satış oranı
   - Scatter: `price_to_category_median` vs satış oranı (eğer türetildiyse)
-- [ ] **Cell 17 (Code) — Category-Level Analysis:**
+- [x] **Cell 17 (Code) — Category-Level Analysis:**
   - Kategori bazlı ortalama fiyat + satış oranı grouped bar chart
   - Hangi kategoriler daha çok satılıyor?
-- [ ] **Cell 18 (Markdown) — Top 3 Predictive Features Explanation:**
+- [x] **Cell 18 (Markdown) — Top 3 Predictive Features Explanation:**
   - Feature 1: Neden tahmin gücü yüksek? Domain açıklaması
   - Feature 2: Neden tahmin gücü yüksek? Domain açıklaması
   - Feature 3: Neden tahmin gücü yüksek? Domain açıklaması
   - Örnek: "Lower-priced items sell faster — buyers on second-hand platforms are price-sensitive"
 
-### Step 7 — Section 4: Feature Engineering Decisions (~1 dk sunum)
+### Step 7 — Section 4: Feature Engineering Decisions (~1 dk sunum) ✅
 
-- [ ] **Cell 19 (Markdown) — Preprocessing Summary Table:**
+- [x] **Cell 19 (Markdown) — Preprocessing Summary Table:**
   | Decision | What | Why |
   |----------|------|-----|
   | Imputation | `original_price` NaN → copy `price`, set `has_discount=False` | Conditional missingness, not random |
@@ -428,73 +425,55 @@
   | New Feature | `has_flaw_mention` | Flaw words: "leke", "yırtık", "bozuk", "hafif kusur" (hoca önerisi) |
   | Limitation | `listing_hour`, `day_of_week` | ⚠️ Dolap ilan tarihi göstermiyor — scrape_at kullanılamaz |
   | Planned | `is_negotiable` | ⚠️ Parser'da yok — gelecek iteration'da eklenecek |
-- [ ] **Cell 20 (Code) — Feature Engineering Code:**
+- [x] **Cell 20 (Code) — Feature Engineering Code:**
   - Brand tier mapping (configs/features.yaml'dan)
   - Condition ordinal encoding
   - Derived features oluşturma
   - Encoding + scaling pipeline
 
-### Step 8 — Investigation: Data Quality Bugs Found 🔍 (~2-3 dk sunum — EN ÖNEMLİ BÖLÜM)
+### Step 8 — Investigation: Data Quality Bugs Found 🔍 (~2-3 dk sunum — EN ÖNEMLİ BÖLÜM) ✅
 > ⭐ Sunum yönergesine göre "en değerli kısım" — gerçek sorun bul, kanıtla, çöz.
 
-- [ ] **Cell 21 (Markdown) — Investigation Header:**
+- [x] **Cell 21 (Markdown) — Investigation Header:**
   - "During our data collection and EDA, we discovered several data quality issues."
   - "We show the raw evidence, explain the root cause, and demonstrate the fix."
-- [ ] **Bug 1 — Price Parsing Inconsistency:**
-  - **Evidence:** `price` sütununda beklenmeyen değerler (0, None, veya çift fiyat parse)
-  - **Root Cause:** `_extract_price()` regex'i "1.299 TL" ve "1,299 TL" formatlarını
-    farklı parse edebiliyor; indirimli ürünlerde original/current fiyat sırası terslenebiliyor
-  - **Fix:** Raw HTML'den kanıt göster → regex düzeltmesi veya fiyat sıralama logic'i
-- [ ] **Bug 2 — Condition Label Inconsistency:**
-  - **Evidence:** `parsers.py` hem "Yeni ve Etiketli" hem "Yeni & Etiketli" arıyor;
-    `features.yaml` sadece "Yeni & Etiketli" mapping'i tanımlıyor
-  - **Root Cause:** Dolap.com farklı sayfalarda farklı format kullanıyor
-  - **Fix:** Normalization fonksiyonu ekle ("ve" → "&" mapping)
-- [ ] **Bug 3 — Color Extraction from URL Slug:**
-  - **Evidence:** `_parse_color()` URL slug'ın 2. segment'ini renk olarak alıyor
-    ama slug yapısı `{brand}-{color}-{category}-...` her zaman tutmuyor
-  - **Root Cause:** Bazı marka adları tire içeriyor (ör: "pull-and-bear-siyah-...")
-  - **Fix:** URL-based yerine HTML-based renk extraction fallback
-- [ ] **Bug 4 — Duplicate Listings:**
-  - **Evidence:** Aynı `listing_id` birden fazla kategoride veya sayfada görünebilir
-  - **Root Cause:** Dolap cross-category listing yapabiliyor
-  - **Fix:** `listing_id` bazlı dedup, ilk görünümü tut
-- [ ] **Bug 5 — Sold Status Detection Ambiguity:**
-  - **Evidence:** Bazı ilanlar 404 dönerken bazıları "Satıldı" badge gösteriyor;
-    bazıları ise satıcı tarafından kaldırılmış (satılmadan)
-  - **Root Cause:** 3 farklı durum var: sold, removed_by_seller, page_expired
-  - **Fix:** Labeling'de 3-class distinction → binary target'a dönüştürürken
-    sadece "confirmed sold" ve "confirmed active" kullan, ambiguous olanları at
-- [ ] **Bug 6 — Brand/Size Field Contamination (⚠️ GERÇEK VERİDE KEŞFEDİLDİ):**
-  - **Evidence:** `brand` = "Zara - S / 36 Beden" → marka + beden birleşik (203 unique ham, 95 temiz)
-  - **Root Cause:** Dolap HTML'de brand ve size bilgisi tek bir element'te birleşik
-  - **Fix:** " - " delimiter ile split → `brand_clean` + `size_extracted` (365/411 size recover edildi)
-- [ ] **Bug 7 — Description Field = Page Title (⚠️ GERÇEK VERİDE KEŞFEDİLDİ):**
-  - **Evidence:** 292/411 kayıtta `description_text` == `title` (parser gerçek açıklamayı çekememiş)
-  - **Root Cause:** description_text aslında `<title>` tag veya meta tag'dan geliyor
-  - **Fix:** `desc_is_placeholder` flag ekle, bu kayıtlarda `description_length` feature'ını güvenilmez say
-- [ ] **Her bug için Cell (Code):** Ham veri kanıtı → before/after gösterimi
+- [x] **Bug 1 — Brand/Size Field Contamination** ⭐ (gerçek veride keşfedildi)
+  - Evidence: 365/411 (%89) brand alanı " - size" içeriyor → notebook Cell 32-33
+  - Fix: `brand_clean` + `size_extracted` split → Before/After bar chart
+- [x] **Bug 2 — Condition Label Inconsistency**
+  - Evidence: "Yeni ve Etiketli" vs "Yeni & Etiketli" → 4→3 unique değer
+  - Fix: Normalization (`clean_features.py`)
+- [x] **Bug 3 — Category Field Empty**
+  - Evidence: 411/411 `category=None` → `category_scraped` kullanıldı
+- [x] **Bug 4 — Description = Page Title** ⭐ (gerçek veride keşfedildi)
+  - Evidence: 311/411 (%76) `description_text == title` → notebook Cell 32
+  - Fix: `desc_is_placeholder` flag eklendi
+- [x] **Bug 5 — is_sold Always False**
+  - Evidence: Tüm 411 ilan `is_sold=False` → proxy_sold oluşturuldu
+- [x] **Bug 6 — Missing Color Values**
+  - Evidence: 0/411 renk bilgisi yok → "Unknown" imputation planlandı
+- [x] **Bug 7 — Keyword Features Low Coverage**
+  - Evidence: `has_flaw_mention=2`, `desc_has_urgency=0` (placeholder desc nedeniyle)
+  - Fix: Acknowledged as limitation, parser fix planned
+- [x] **Her bug için Cell (Code):** Cell 32 (Bug Evidence tablosu) + Cell 33 (Brand Before/After)
 
 ### Step 9 — Presentation Polish & Rehearsal
 
-- [ ] **Show/Hide Code mekanizması:**
-  - Jupyter nbextension ile hide_input veya RISE eklentisi kur
+- [x] **Show/Hide Code mekanizması:**
+  - HTML/JS toggle button ile implemente edildi (nbextension yerine)
   - Tüm code cell'leri varsayılan olarak gizle
   - Sunum sırasında "Show Code" butonu ile isteğe bağlı göster
-- [ ] **Takım üyesi görev dağılımı:**
-  | Üye | Bölüm | Süre |
-  |-----|-------|------|
-  | Üye 1 | Section 1 (Problem) + Section 2 (Data Collection) | ~3 dk |
-  | Üye 2 | Section 3.1-3.2 (Schema + Statistics) | ~2 dk |
-  | Üye 3 | Section 3.3-3.4 (Distributions + Relationships) | ~2.5 dk |
-  | Üye 4 | Section 4 (Feature Eng.) + Investigation (Bugs) | ~2.5 dk |
-- [ ] **Tüm slide'lar İngilizce** — Türkçe terim varsa parantez içinde
+- [x] **Takım üyesi görev dağılımı (3 kişi × 10 dk):**
+  | Üye | Bölüm | Cell'ler | Süre |
+  |-----|-------|----------|------|
+  | **Furkan** | S1 Problem + S2 Data Collection + Target Dist. | Cell 1-6 | ~3 dk |
+  | **Utku** | S3.1 Schema + S3.2 Stats + S3.3 Distributions | Cell 7-20 | ~3.5 dk |
+  | **Halil** | S3.4 Correlations + Hypotheses + S4 Feature Eng. + Investigation + Conclusion | Cell 21-34 | ~3.5 dk |
+- [x] **Tüm slide'lar İngilizce** — Türkçe terim varsa parantez içinde
 - [ ] **10 dakika prova** — zamanlama kontrolü
 - [ ] **Yedek slide'lar:** Sorulabilecek sorular için ekstra grafikler hazırla
-  - Model seçim gerekçesi (LR / RF / XGBoost)
-  - 7-gün labeling mekanizması detay diyagramı
-  - Cloudflare bypass teknik detayları
-- [ ] Final notebook commit: `feat: EDA presentation notebook`
+- [x] Final notebook commit: `feat: EDA presentation notebook`
+- [ ] Prova rehberi → `docs/PRESENTATION_GUIDE.md`
 
 ---
 
@@ -721,7 +700,7 @@
 |-----------|-------|------------------|
 | 🏗️ M0 — Foundation | ✅ Tamamlandı | Phase 0, 0.5, 1 |
 | 🌐 M1 — Data Collection | ✅ Tamamlandı | Phase 2, 3, 4, 5 |
-| 🎤 **EDA Presentation** | 🟡 **AKTİF — ÖNCELİK** | Step 0 (pilot ✅, genişletme gerekli) |
+| 🎤 **EDA Presentation** | 🟡 **AKTİF — PROVA KALDI** | Step 0-8 ✅, Step 9 prova + görev dağılımı |
 | ⏳ M2 — Temporal Labeling | ⏳ Bekliyor | — |
 | 🧹 M3 — Data Processing | ⏳ Bekliyor (Phase 10 → EDA Pres.) | — |
 | 🤖 M4 — Modeling | ⏳ Bekliyor | — |
@@ -741,6 +720,9 @@
 | 7 | `8bacbfc` | `feat: dolap site reverse engineering` | develop |
 | 8 | `42ef94f` | `feat: basic scraper prototype` | develop |
 | 9 | `b154319` | `feat(M1): complete cohort scraping pipeline with pilot data collection` | develop |
+| 10 | `3141cdb` | `feat(EDA): initial EDA presentation notebook` | develop |
+| 11 | `fdea696` | `chore: whitelist pilot data files for team sharing` | develop |
+| 12 | `e750147` | `feat(EDA): presentation guidelines compliance` | develop |
 
 ## 🏗️ Altyapı Envanteri
 
@@ -786,7 +768,7 @@ src/pipelines/
 └── evaluate.py         ← ⏳ İskelet (Phase 15-17'de implement edilecek)
 
 src/labeling/           ← ⏳ Boş (Phase 6-7)
-src/preprocessing/      ← ⏳ Boş (Phase 8)
+src/preprocessing/      ← ✅ clean_features.py (feature temizleme + proxy label)
 src/features/           ← ⏳ Boş (Phase 9)
 src/dataset/            ← ⏳ Boş (Phase 8)
 src/models/             ← ⏳ Boş (Phase 11-14)
@@ -797,18 +779,13 @@ src/evaluation/         ← ⏳ Boş (Phase 15-17)
 
 ## ⚡ Sonraki Adım
 
-> **� EDA PRESENTATION — Step 0 kısmen tamamlandı, devam ediliyor**
+> **🎤 EDA PRESENTATION — Notebook tamamlandı, prova ve görev dağılımı kaldı**
 >
-> Pilot cohort toplandı (411 ilan, 3 kategori). Sıralama:
+> ✅ Step 0-8 tamamlandı. Notebook 34 cell, tüm hücreler çalıştırıldı (exec 1-20).
 >
-> 1. **ŞİMDİ:** Kalan 5 kategoriyi scrape et → hedef 1000+ ilan (Step 0)
-> 2. **ŞİMDİ:** Labeling stratejisi belirle ve pseudo-label oluştur
->    (is_sold tüm ilanlar için False — engagement-based veya 7-gün re-check gerekli)
-> 3. **SONRA:** Notebook skeleton oluştur (Step 1-2)
-> 4. **SONRA:** Schema + Statistics + Distributions (Step 3-5)
-> 5. **SONRA:** Relationships + Feature Engineering (Step 6-7)
-> 6. **SONRA:** Investigation — veri kalitesi sorunlarını bul ve düzelt (Step 8)
-> 7. **SUNUM ÖNCESİ:** Polish + Rehearsal (Step 9)
+> 1. **ŞİMDİ:** Takım üyesi görev dağılımı (Step 9)
+> 2. **ŞİMDİ:** 10 dakika prova — zamanlama kontrolü
+> 3. **SONRA (M2):** Genişletilmiş scrape (5 ek kategori) + temporal labeling (7 gün re-check)
 >
-> ✅ M0 Foundation ve M1 Data Collection tamamlandı.
-> 📊 Pilot veri: 411 ilan | 3 kategori | 12 satıcı | %100 field coverage
+> ✅ M0 Foundation + M1 Data Collection tamamlandı.
+> 📊 Pilot veri: 411 ilan | 3 kategori | 12 satıcı | proxy_sold %26.5 positive
