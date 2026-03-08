@@ -16,16 +16,16 @@ Usage::
     python -m src.pipelines.scrape --max-pages 3
 
 The pipeline:
-    1. Loads ``configs/scraping.yaml``
+    1. Loads ``configs/scraping.yaml`` + ``configs/pipeline.yaml``
     2. For each target category, crawls listing URLs
     3. Scrapes individual listing detail pages
-    4. Saves results as JSONL files + ``meta.yaml``
+    4. Streams results through **SnapshotWriter** (append-only JSONL + dedup)
+    5. Registers cohort in **CohortStateTracker** (SQLite lifecycle)
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -33,6 +33,7 @@ from pathlib import Path
 import yaml
 
 from src.scraping.scraper import DolapScraper, load_scraping_config
+from src.scraping.storage import CohortStateTracker, SnapshotWriter
 from src.utils.logger import get_logger, setup_logging
 
 
@@ -90,8 +91,20 @@ def main(argv: list[str] | None = None) -> None:
 
     cfg = load_scraping_config(args.config)
     cohort_id = args.cohort_id or datetime.now().strftime("%Y%m%d")
-    output_dir = Path(cfg.get("output_dir", "data/raw_snapshots")) / f"cohort_{cohort_id}"
+    base_dir = Path(cfg.get("output_dir", "data/raw_snapshots"))
     headless = not args.no_headless
+
+    # Pipeline config for database path
+    pipeline_cfg_path = Path("configs/pipeline.yaml")
+    if pipeline_cfg_path.exists():
+        with open(pipeline_cfg_path, "r", encoding="utf-8") as fh:
+            pipeline_cfg = yaml.safe_load(fh) or {}
+    else:
+        pipeline_cfg = {}
+
+    db_url = pipeline_cfg.get("database", {}).get("url", "sqlite:///data/dolap_state.db")
+    # Extract file path from sqlite URL  ("sqlite:///data/dolap_state.db" → "data/dolap_state.db")
+    db_path = db_url.replace("sqlite:///", "") if db_url.startswith("sqlite:///") else "data/dolap_state.db"
 
     # Determine target categories
     if args.categories:
@@ -106,7 +119,7 @@ def main(argv: list[str] | None = None) -> None:
         "Scrape pipeline configuration",
         config=args.config,
         cohort_id=cohort_id,
-        output_dir=str(output_dir),
+        base_dir=str(base_dir),
         categories=categories,
         max_pages=max_pages,
         headless=headless,
@@ -117,66 +130,76 @@ def main(argv: list[str] | None = None) -> None:
         logger.info("Dry run — printing plan and exiting")
         for slug in categories:
             print(f"  → Would scrape category: {slug} (max {max_pages} pages)")
-        print(f"  → Output: {output_dir}")
+        print(f"  → Output: {base_dir / f'cohort_{cohort_id}'}")
         return
 
+    # ── Initialise storage layer ───────────────────────────────────────
+    writer = SnapshotWriter(base_dir=base_dir, cohort_id=cohort_id)
+    writer.setup()
+
+    tracker = CohortStateTracker(db_path=db_path)
+
     # ── Execute ────────────────────────────────────────────────────────
-    output_dir.mkdir(parents=True, exist_ok=True)
     scrape_start = datetime.utcnow()
-
     total_listings: int = 0
-    category_stats: dict[str, dict] = {}
 
-    with DolapScraper(config_path=args.config, headless=headless) as scraper:
-        for slug in categories:
-            logger.info(f"{'─' * 40}")
-            logger.info(f"Category: {slug}")
+    try:
+        with DolapScraper(config_path=args.config, headless=headless) as scraper:
+            for slug in categories:
+                logger.info(f"{'─' * 40}")
+                logger.info(f"Category: {slug}")
 
-            jsonl_path = output_dir / f"{slug}.jsonl"
+                # Scrape without output_path — writing is delegated to SnapshotWriter
+                results = scraper.scrape_category(
+                    category_slug=slug,
+                    max_pages=max_pages,
+                    output_path=None,
+                )
 
-            results = scraper.scrape_category(
-                category_slug=slug,
-                max_pages=max_pages,
-                output_path=jsonl_path,
-            )
+                # Stream results through SnapshotWriter (handles dedup + combined JSONL)
+                written = writer.append_batch(slug, results)
+                total_listings += written
 
-            category_stats[slug] = {
-                "listings_scraped": len(results),
-                "output_file": str(jsonl_path),
-            }
-            total_listings += len(results)
+                logger.info(
+                    "Category complete",
+                    category=slug,
+                    scraped=len(results),
+                    written=written,
+                    duplicates=len(results) - written,
+                )
+    finally:
+        scrape_end = datetime.utcnow()
+        duration = (scrape_end - scrape_start).total_seconds()
 
-            logger.info(
-                "Category complete",
-                category=slug,
-                listings=len(results),
-            )
+        # ── Finalise snapshot (meta.yaml) ──────────────────────────────
+        meta_path = writer.finalise(
+            scrape_start=scrape_start.isoformat(),
+            scrape_end=scrape_end.isoformat(),
+            duration_seconds=duration,
+            max_pages_per_category=max_pages,
+            config_path=args.config,
+        )
 
-    scrape_end = datetime.utcnow()
+        # ── Register in CohortStateTracker ─────────────────────────────
+        tracker.register_cohort(
+            cohort_id,
+            total_listings=writer.stats["total_written"],
+            duration_seconds=duration,
+            scrape_start=scrape_start.isoformat(),
+            scrape_end=scrape_end.isoformat(),
+            categories=categories,
+        )
+        tracker.close()
 
-    # ── Write meta.yaml ────────────────────────────────────────────────
-    meta = {
-        "cohort_id": cohort_id,
-        "scrape_start": scrape_start.isoformat(),
-        "scrape_end": scrape_end.isoformat(),
-        "duration_seconds": (scrape_end - scrape_start).total_seconds(),
-        "categories": category_stats,
-        "total_listings": total_listings,
-        "config_path": args.config,
-        "max_pages_per_category": max_pages,
-    }
-
-    meta_path = output_dir / "meta.yaml"
-    with open(meta_path, "w", encoding="utf-8") as fh:
-        yaml.dump(meta, fh, default_flow_style=False, allow_unicode=True)
-
-    logger.info(
-        "Scrape pipeline complete",
-        cohort_id=cohort_id,
-        total_listings=total_listings,
-        duration_seconds=meta["duration_seconds"],
-        output_dir=str(output_dir),
-    )
+        logger.info(
+            "Scrape pipeline complete",
+            cohort_id=cohort_id,
+            total_listings=writer.stats["total_written"],
+            duplicates_skipped=writer.stats["duplicates_skipped"],
+            duration_seconds=duration,
+            output_dir=str(writer.cohort_dir),
+            meta=str(meta_path),
+        )
 
 
 if __name__ == "__main__":

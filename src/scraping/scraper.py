@@ -56,6 +56,13 @@ from src.scraping.parsers import (
     parse_listing_urls_from_page,
     parse_product_detail,
 )
+from src.scraping.rate_limiter import (
+    BanDetectedError,
+    BanDetector,
+    RateLimiter,
+    SessionManager,
+    build_proxy_options,
+)
 from src.utils.logger import get_logger
 
 
@@ -114,18 +121,40 @@ class DolapScraper:
         self.logger = get_logger("scraper")
         self.driver: webdriver.Chrome | None = None
 
-        # Rate limiting params
+        # Rate limiting params (legacy — kept for backward compat)
         self._delay_min: float = self.cfg.get("delay", {}).get("min_seconds", 1.5)
         self._delay_max: float = self.cfg.get("delay", {}).get("max_seconds", 3.5)
         self._max_retries: int = self.cfg.get("max_retries", 3)
         self._backoff_factor: float = self.cfg.get("retry_backoff_factor", 2.0)
         self._timeout: int = self.cfg.get("timeout_seconds", 30)
 
+        # ── Phase 4: Anti-ban components ─────────────────────────────────
+        ban_cfg = self.cfg.get("ban_detection", {})
+        self._rate_limiter = RateLimiter(
+            base_min=self._delay_min,
+            base_max=self._delay_max,
+            escalation_factor=self._backoff_factor,
+            max_delay=ban_cfg.get("max_delay", 60.0),
+            recovery_requests=ban_cfg.get("recovery_requests", 5),
+        )
+        self._ban_detector = BanDetector(
+            max_consecutive_failures=ban_cfg.get("max_consecutive_failures", 5),
+            cooldown_seconds=ban_cfg.get("cooldown_seconds", 30.0),
+            warning_threshold=ban_cfg.get("warning_threshold", 3),
+        )
+        self._session_manager = SessionManager(
+            cookie_file=self.cfg.get("cookie_file", "data/.cookies.json"),
+        )
+
+        # Proxy config
+        self._proxy_cfg: dict = self.cfg.get("proxy", {})
+
         # Stats
         self._stats: dict[str, int] = {
             "pages_loaded": 0,
             "listings_scraped": 0,
             "errors": 0,
+            "ban_escalations": 0,
         }
 
     def __enter__(self) -> "DolapScraper":
@@ -154,6 +183,12 @@ class DolapScraper:
         ua = random.choice(_USER_AGENTS)
         options.add_argument(f"--user-agent={ua}")
 
+        # Phase 4: Proxy support
+        proxy_args = build_proxy_options(self._proxy_cfg)
+        for arg, val in proxy_args.items():
+            options.add_argument(f"{arg}={val}")
+            self.logger.info("Proxy configured", proxy=val[:30] + "…")
+
         # Suppress automation flags
         options.add_experimental_option("excludeSwitches", ["enable-automation"])
         options.add_experimental_option("useAutomationExtension", False)
@@ -169,22 +204,86 @@ class DolapScraper:
         self.driver.set_page_load_timeout(self._timeout)
         self.logger.info("WebDriver initialised", user_agent=ua[:60] + "…")
 
+        # Phase 4: Load persisted cookies (if any)
+        if self._session_manager.has_saved_cookies:
+            try:
+                self.driver.get(_BASE_URL)  # need to be on domain first
+                loaded = self._session_manager.load_cookies(self.driver)
+                if loaded > 0:
+                    self.logger.info("Session restored from cookies", count=loaded)
+            except Exception as exc:
+                self.logger.debug("Cookie restore failed (non-critical)", error=str(exc)[:80])
+
     def close(self) -> None:
         """Shut down the WebDriver."""
         if self.driver:
+            # Phase 4: Persist cookies before closing
+            try:
+                self._session_manager.save_cookies(self.driver)
+            except Exception:
+                pass  # best-effort
             self.driver.quit()
             self.driver = None
-            self.logger.info("WebDriver closed", stats=self._stats)
+            self.logger.info(
+                "WebDriver closed",
+                stats=self._stats,
+                rate_limiter=self._rate_limiter.stats,
+                ban_detector=self._ban_detector.stats,
+            )
 
-    # -- rate limiting ----------------------------------------------------
+    # -- rate limiting & navigation ----------------------------------------
 
     def _sleep(self) -> None:
-        """Random sleep between requests."""
-        delay = random.uniform(self._delay_min, self._delay_max)
-        time.sleep(delay)
+        """Adaptive sleep between requests (delegates to RateLimiter)."""
+        self._rate_limiter.wait()
+
+    def _detect_http_status(self, page_source: str) -> int | None:
+        """Infer an HTTP-like status code from the rendered page content.
+
+        Selenium doesn't expose HTTP status codes directly, so we detect
+        common error pages from their HTML content.
+
+        Returns
+        -------
+        int | None
+            403, 429, 503, 404, or ``None`` if the page looks normal.
+        """
+        if not page_source:
+            return 503
+
+        # Cloudflare blocks
+        if "Attention Required" in page_source or "cf-error" in page_source:
+            return 403
+
+        # Cloudflare rate-limiting
+        if "Rate limited" in page_source or "Too many requests" in page_source:
+            return 429
+
+        # Service unavailable / maintenance
+        if "503 Service" in page_source or "temporarily unavailable" in page_source:
+            return 503
+
+        # Not found
+        if (
+            "404" in page_source[:500]
+            and ("Sayfa bulunamadı" in page_source or "Page not found" in page_source)
+        ):
+            return 404
+
+        return None
 
     def _navigate(self, url: str, *, retries: int | None = None) -> str:
-        """Navigate to *url* with retry logic.  Returns page source HTML."""
+        """Navigate to *url* with retry logic, ban detection and adaptive delays.
+
+        Returns page source HTML.
+
+        Raises
+        ------
+        BanDetectedError
+            If consecutive failures exceed the ban threshold.
+        TimeoutException / WebDriverException
+            If all retries are exhausted.
+        """
         assert self.driver is not None, "Call .start() first"
         max_tries = retries or self._max_retries
         full_url = url if url.startswith("http") else f"{_BASE_URL}{url}"
@@ -198,20 +297,42 @@ class DolapScraper:
                 )
                 self._stats["pages_loaded"] += 1
 
-                # Check for Cloudflare challenge page
                 page_source = self.driver.page_source
-                if "Attention Required" in page_source or "cf-error" in page_source:
+
+                # Phase 4: Detect HTTP status from page content
+                status = self._detect_http_status(page_source)
+
+                if status in (403, 429, 503):
                     self.logger.warning(
-                        "Cloudflare challenge detected, waiting…",
+                        "Server error detected",
                         url=full_url,
+                        detected_status=status,
                         attempt=attempt,
                     )
-                    time.sleep(5 + attempt * 2)  # extra wait for CF
-                    page_source = self.driver.page_source
-                    if "Attention Required" in page_source:
-                        raise WebDriverException("Cloudflare block persists")
+                    # Notify ban detector & rate limiter
+                    self._rate_limiter.adapt(status_code=status, success=False)
+                    self._ban_detector.record_failure(status)  # may raise BanDetectedError
+                    self._stats["errors"] += 1
 
+                    if attempt < max_tries:
+                        # Extra Cloudflare wait + adaptive backoff
+                        backoff = self._backoff_factor ** attempt + random.uniform(2, 5)
+                        self.logger.info("Backing off", seconds=f"{backoff:.1f}", attempt=attempt)
+                        time.sleep(backoff)
+                        continue
+                    else:
+                        raise WebDriverException(
+                            f"Server returned {status} after {max_tries} attempts"
+                        )
+
+                # Success path
+                self._rate_limiter.adapt(status_code=200, success=True)
+                self._ban_detector.record_success()
                 return page_source
+
+            except BanDetectedError:
+                # Propagate ban — caller should abort the session
+                raise
 
             except (TimeoutException, WebDriverException) as exc:
                 self.logger.warning(
@@ -220,11 +341,14 @@ class DolapScraper:
                     attempt=attempt,
                     error=str(exc)[:120],
                 )
+                self._rate_limiter.adapt(status_code=None, success=False)
+
                 if attempt < max_tries:
                     backoff = self._backoff_factor ** attempt
                     time.sleep(backoff)
                 else:
                     self._stats["errors"] += 1
+                    self._ban_detector.record_failure(None)  # may raise BanDetectedError
                     raise
 
         raise RuntimeError("Unreachable")  # pragma: no cover
@@ -269,6 +393,14 @@ class DolapScraper:
 
             try:
                 html = self._navigate(url)
+            except BanDetectedError:
+                self.logger.error(
+                    "Ban detected during category crawl — aborting",
+                    category=category_slug,
+                    page=page_num,
+                    collected=len(all_urls),
+                )
+                break
             except (TimeoutException, WebDriverException):
                 self.logger.error("Failed to load category page, stopping", page=page_num)
                 break
@@ -335,6 +467,176 @@ class DolapScraper:
         except WebDriverException:
             pass
 
+    def _extract_urls_via_js(self, pattern: str = "/urun/") -> list[str]:
+        """Extract links from the live DOM using JavaScript.
+
+        Dolap.com is a SPA — product links are rendered by JS and may
+        not appear in ``page_source``.  This method queries the live DOM
+        via ``document.querySelectorAll``.
+
+        Parameters
+        ----------
+        pattern : str
+            Substring to filter ``<a>`` href attributes.
+
+        Returns
+        -------
+        list[str]
+            Unique URLs (absolute) matching the pattern.
+        """
+        assert self.driver is not None
+        urls: list[str] = self.driver.execute_script(f"""
+            var links = [];
+            document.querySelectorAll('a').forEach(function(a) {{
+                var href = a.href || '';
+                if (href.includes('{pattern}')) links.push(href);
+            }});
+            return [...new Set(links)];
+        """) or []
+        return urls
+
+    # -- seller profile crawling ------------------------------------------
+
+    def crawl_seller_profile(
+        self,
+        username: str,
+        max_pages: int | None = None,
+        category_filter: str | None = None,
+    ) -> list[str]:
+        """Crawl a seller's profile and extract product URLs.
+
+        Seller profile pages (``/profil/{username}``) are the most reliable
+        source of ``/urun/`` links on Dolap.com.  Category and search pages
+        are SPA-rendered and often redirect or fail to expose product URLs.
+
+        Parameters
+        ----------
+        username : str
+            Seller username (e.g. ``"iphonelcase"``).
+        max_pages : int, optional
+            Maximum profile pages to crawl.  Defaults to config value.
+        category_filter : str, optional
+            Optional category slug filter (appended as ``?kategori=…``).
+
+        Returns
+        -------
+        list[str]
+            Deduplicated absolute product URLs.
+        """
+        limit = max_pages or self.cfg.get("max_pages_per_category", 50)
+        all_urls: list[str] = []
+        seen: set[str] = set()
+
+        self.logger.info(
+            "Crawling seller profile",
+            username=username,
+            max_pages=limit,
+            category_filter=category_filter,
+        )
+
+        for page_num in range(1, limit + 1):
+            profile_url = f"{_BASE_URL}/profil/{username}"
+            params: list[str] = []
+            if category_filter:
+                params.append(f"kategori={category_filter}")
+            if page_num > 1:
+                params.append(f"sayfa={page_num}")
+            if params:
+                profile_url += "?" + "&".join(params)
+
+            self.logger.debug("Loading profile page", url=profile_url, page=page_num)
+
+            try:
+                self._navigate(profile_url)
+            except BanDetectedError:
+                self.logger.error(
+                    "Ban detected during profile crawl — aborting",
+                    username=username,
+                    page=page_num,
+                    collected=len(all_urls),
+                )
+                break
+            except (TimeoutException, WebDriverException):
+                self.logger.error("Failed to load profile page, stopping", page=page_num)
+                break
+
+            # Wait for product links to render
+            self._wait_for_products()
+
+            # Extract product URLs via JavaScript DOM query
+            urls = self._extract_urls_via_js("/urun/")
+
+            new_urls = [u for u in urls if u not in seen]
+            if not new_urls:
+                self.logger.info(
+                    "No new listings found on profile, stopping pagination",
+                    page=page_num,
+                    total=len(all_urls),
+                )
+                break
+
+            for u in new_urls:
+                seen.add(u)
+                all_urls.append(u)
+
+            self.logger.info(
+                "Profile page scraped",
+                page=page_num,
+                new_urls=len(new_urls),
+                total=len(all_urls),
+            )
+            self._sleep()
+
+        self.logger.info(
+            "Profile crawl complete",
+            username=username,
+            total_urls=len(all_urls),
+        )
+        return all_urls
+
+    def discover_sellers(
+        self,
+        seed_url: str,
+        max_sellers: int = 20,
+    ) -> list[str]:
+        """Discover seller usernames from a product page's 'BENZER ÜRÜNLER'.
+
+        Parameters
+        ----------
+        seed_url : str
+            A product detail URL to start from.
+        max_sellers : int
+            Maximum unique sellers to discover.
+
+        Returns
+        -------
+        list[str]
+            List of unique seller usernames.
+        """
+        self.logger.info("Discovering sellers", seed_url=seed_url[:80])
+        sellers: set[str] = set()
+
+        try:
+            self._navigate(seed_url)
+        except (BanDetectedError, TimeoutException, WebDriverException):
+            self.logger.error("Failed to load seed URL", url=seed_url[:80])
+            return []
+
+        self._wait_for_product_detail()
+
+        # Extract profile links
+        profil_urls = self._extract_urls_via_js("/profil/")
+        for pu in profil_urls:
+            # Extract username from URL like https://dolap.com/profil/iphonelcase
+            parts = pu.rstrip("/").split("/profil/")
+            if len(parts) == 2 and parts[1]:
+                username = parts[1].split("?")[0].split("#")[0]
+                if username and len(sellers) < max_sellers:
+                    sellers.add(username)
+
+        self.logger.info("Sellers discovered", count=len(sellers), sellers=list(sellers)[:10])
+        return list(sellers)
+
     # -- listing scraping -------------------------------------------------
 
     def scrape_listing(self, url: str) -> dict[str, Any]:
@@ -355,6 +657,14 @@ class DolapScraper:
 
         try:
             html = self._navigate(url)
+        except BanDetectedError:
+            self.logger.error("Ban detected during listing scrape", url=url)
+            return {
+                "url": url,
+                "listing_id": extract_listing_id_from_url(url),
+                "_parse_errors": ["Ban detected — scraping aborted"],
+                "_ban_detected": True,
+            }
         except (TimeoutException, WebDriverException) as exc:
             self.logger.error("Failed to load listing", url=url, error=str(exc)[:120])
             return {
@@ -429,6 +739,15 @@ class DolapScraper:
             data = self.scrape_listing(url)
             results.append(data)
 
+            # Phase 4: Abort batch if ban detected
+            if data.get("_ban_detected"):
+                self.logger.error(
+                    "Ban detected — aborting batch",
+                    scraped=len(results),
+                    remaining=total - idx,
+                )
+                break
+
             # Stream to JSONL
             if out:
                 with open(out, "a", encoding="utf-8") as fh:
@@ -460,17 +779,76 @@ class DolapScraper:
         category_slug: str,
         max_pages: int | None = None,
         output_path: str | Path | None = None,
+        seed_sellers: list[str] | None = None,
     ) -> list[dict[str, Any]]:
-        """End-to-end: crawl category → scrape all listings → save.
+        """End-to-end: discover sellers → crawl profiles → scrape listings.
 
-        Convenience method combining ``crawl_category`` +
-        ``scrape_listings_batch``.
+        Dolap.com category pages redirect or fail to expose product URLs.
+        Instead, we crawl seller profiles to collect ``/urun/`` links,
+        then scrape each product detail page.
+
+        Parameters
+        ----------
+        category_slug : str
+            Target category (e.g. ``"kazak"``).  Used for tagging only;
+            actual URL discovery goes through seller profiles.
+        max_pages : int, optional
+            Max profile pages per seller.
+        output_path : str | Path, optional
+            JSONL output path (legacy; prefer SnapshotWriter in pipeline).
+        seed_sellers : list[str], optional
+            Starting seller usernames.  If not provided, reads from
+            ``scraping.yaml`` → ``categories[slug].seed_sellers``.
+
+        Returns
+        -------
+        list[dict]
+            All scraped listing dicts.
         """
-        urls = self.crawl_category(category_slug, max_pages=max_pages)
-        if not urls:
+        # Resolve seed sellers from config if not provided
+        if not seed_sellers:
+            for cat_cfg in self.cfg.get("categories", []):
+                if cat_cfg.get("slug") == category_slug:
+                    seed_sellers = cat_cfg.get("seed_sellers", [])
+                    break
+            seed_sellers = seed_sellers or []
+
+        if not seed_sellers:
+            self.logger.warning(
+                "No seed sellers for category — falling back to crawl_category",
+                category=category_slug,
+            )
+            urls = self.crawl_category(category_slug, max_pages=max_pages)
+            if not urls:
+                return []
+            return self.scrape_listings_batch(urls, output_path=output_path)
+
+        # Collect product URLs from all seed sellers
+        all_urls: list[str] = []
+        seen: set[str] = set()
+
+        for username in seed_sellers:
+            profile_urls = self.crawl_seller_profile(
+                username,
+                max_pages=max_pages,
+            )
+            for u in profile_urls:
+                if u not in seen:
+                    seen.add(u)
+                    all_urls.append(u)
+
+        self.logger.info(
+            "URL collection complete for category",
+            category=category_slug,
+            total_urls=len(all_urls),
+            sellers_crawled=len(seed_sellers),
+        )
+
+        if not all_urls:
             self.logger.warning("No URLs found for category", category=category_slug)
             return []
-        return self.scrape_listings_batch(urls, output_path=output_path)
+
+        return self.scrape_listings_batch(all_urls, output_path=output_path)
 
     @property
     def stats(self) -> dict[str, int]:

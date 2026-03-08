@@ -19,36 +19,79 @@ scraping:
     enabled: false
     url: ""  # http://user:pass@host:port
 
+  # Ban detection & adaptive rate limiting (Phase 4)
+  ban_detection:
+    max_consecutive_failures: 5   # stop after N consecutive 403/429/503
+    warning_threshold: 3          # cooldown pause at this many failures
+    cooldown_seconds: 30.0        # mandatory pause at warning threshold
+    max_delay: 60.0               # hard upper bound for adaptive delay
+    recovery_requests: 5          # successes before de-escalating delay
+
+  # Session / cookie persistence
+  cookie_file: "data/.cookies.json"
+
   # Pagination
   max_pages_per_category: 50    # 0 = unlimited
   items_per_page: 20            # Dolap default
 
   # Target categories to scrape
+  # NOTE: Dolap.com category pages redirect/don't expose product URLs.
+  # We use seller-profile crawling: seed_sellers per category.
+  # Sellers discovered from brand pages (Zara, H&M, Koton, etc.)
   categories:
     - slug: "kazak"
       name: "Kazak"
+      seed_sellers:
+        - efnanindolabiii
+        - burcincelikkurt
+        - ezgierden
+        - minnakiro
+        - zelyaaa
+        - karyatug
     - slug: "elbise"
       name: "Elbise"
+      seed_sellers:
+        - markalidolap4444
+        - roomvintage
+        - ucuzvemarkadolap
     - slug: "mont"
       name: "Mont"
-    - slug: "cizme"
-      name: "Çizme"
-    - slug: "bot"
-      name: "Bot"
-    - slug: "kol-cantasi"
-      name: "Kol Çantası"
-    - slug: "spor-ayakkabi"
-      name: "Spor Ayakkabı"
-    - slug: "jean-pantolon"
-      name: "Jean Pantolon"
-    - slug: "gomlek"
-      name: "Gömlek"
+      seed_sellers:
+        - bazeen
+        - unutmadolap
+        - conbez
     - slug: "etek"
       name: "Etek"
+      seed_sellers:
+        - fevnurcakmak
+        - sltnisra
+        - bett554
+    - slug: "gomlek"
+      name: "Gömlek"
+      seed_sellers:
+        - selenhazal
+        - sengel4545
+        - maximav35
     - slug: "tshirt"
       name: "T-Shirt"
+      seed_sellers:
+        - kadimulusoglu
+        - rumuzmelekkk34
+        - sim89
+        - asinesya
+        - aslanexport
     - slug: "sweatshirt"
       name: "Sweatshirt"
+      seed_sellers:
+        - dolap456022549
+        - denizworld
+    - slug: "pantolon"
+      name: "Pantolon"
+      seed_sellers:
+        - younaxx
+        - yarensmsek
+        - nslhndzgn
+        - ezgimckl
 
   # Storage
   output_format: "jsonl"         # jsonl | csv
