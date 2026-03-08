@@ -9,12 +9,25 @@
 data/raw_snapshots/**
 data/labels/**
 data/processed/**
-data/interim/**
-!data/raw_snapshots/.gitkeep
 !data/labels/.gitkeep
 !data/processed/.gitkeep
 !data/interim/.gitkeep
 !data/README.md
+
+# ── Whitelist: cohort data for team access ──
+!data/raw_snapshots/cohort_20250712/
+data/raw_snapshots/cohort_20250712/**
+!data/raw_snapshots/cohort_20250712/*.jsonl
+!data/raw_snapshots/cohort_20250712/meta.yaml
+!data/interim/cohort_20250712_cleaned.csv
+
+!data/raw_snapshots/cohort_20260308/
+data/raw_snapshots/cohort_20260308/**
+!data/raw_snapshots/cohort_20260308/*.jsonl
+!data/raw_snapshots/cohort_20260308/meta.yaml
+!data/interim/cohort_20260308_cleaned.csv
+
+!data/dolap_state.db
 
 # ────────────────────────────────────────────────────────────────────────────
 # ARTIFACTS – Trained models, generated figures, metric dumps
@@ -25,6 +38,7 @@ artifacts/metrics/*
 artifacts/experiments/*
 !artifacts/models/.gitkeep
 !artifacts/figures/.gitkeep
+!artifacts/figures/*.png
 !artifacts/metrics/.gitkeep
 !artifacts/experiments/.gitkeep
 *.pkl
@@ -130,6 +144,14 @@ coverage.xml
 *.log
 *.sqlite3
 *.db
+!data/dolap_state.db
+
+# ────────────────────────────────────────────────────────────────────────────
+# SCRIPTS – Temporary debug/scratch files
+# ────────────────────────────────────────────────────────────────────────────
+scripts/debug_*
+scripts/*.png
+scripts/*.html
 
 # ────────────────────────────────────────────────────────────────────────────
 # MISC
@@ -140,9 +162,16 @@ coverage.xml
 *.feather
 *.arrow
 *.json
+*.jsonl
 !configs/*.json
 !configs/**/*.json
 !package.json
+
+# ── Whitelist: cohort data files for team access ──
+!data/raw_snapshots/cohort_20250712/*.jsonl
+!data/interim/cohort_20250712_cleaned.csv
+!data/raw_snapshots/cohort_20260308/*.jsonl
+!data/interim/cohort_20260308_cleaned.csv
 *.xml
 !configs/*.xml
 *.zip

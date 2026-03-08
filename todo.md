@@ -2,7 +2,7 @@
 
 > **Son güncelleme:** 2026-03-08
 > **Branch:** `develop`
-> **Durum:** Phase 5 tamamlandı → 🎤 **EDA Presentation hazırlığı aktif**
+> **Durum:** M1 tamamlandı ✅ | Pilot cohort (411 ilan) toplandı → 🎤 **EDA Presentation hazırlığı aktif**
 > **Öncelik:** EDA Sunum Notebook'u (Practical Data Science dersi — 10 dk, İngilizce, Jupyter üzerinden)
 
 ---
@@ -19,13 +19,13 @@
 │  └── Phase 1   — Literature Research & Project Report                   │
 │                                                                         │
 │  🌐 M1 — DATA COLLECTION SYSTEM                            [████████] ✅│
-│  ├── Phase 2   — Dolap Site Reverse Engineering                         │
-│  ├── Phase 3   — Basic Scraper Prototype                                │
-│  ├── Phase 4   — Anti-Ban Protection                                    │
-│  └── Phase 5   — Snapshot Storage System                                │
+│  ├── Phase 2   — Dolap Site Reverse Engineering              ✅         │
+│  ├── Phase 3   — Basic Scraper Prototype                     ✅         │
+│  ├── Phase 4   — Anti-Ban Protection                         ✅         │
+│  └── Phase 5   — Snapshot Storage System                     ✅         │
 │                                                                         │
-│  🎤 EDA PRESENTATION (Practical Data Science)               [░░░░░░░░] 🔴│
-│  ├── Step 0  — Data Acquisition (scrape + pseudo-label)     ← BLOCKER  │
+│  🎤 EDA PRESENTATION (Practical Data Science)               [██░░░░░░] 🟡│
+│  ├── Step 0  — Data Acquisition (scrape + pseudo-label)      ✅ pilot   │
 │  ├── Step 1  — Notebook Skeleton & Problem Formulation                  │
 │  ├── Step 2  — Data Collection Narrative                                │
 │  ├── Step 3  — Schema Check & Missing Values                            │
@@ -224,7 +224,7 @@
 - [x] `src/pipelines/scrape.py` implementasyonu — SnapshotWriter + CohortStateTracker entegrasyonu tamamlandı
 - [x] Scrape özet logu: kaç ilan, kaç kategori, kaç hata, süre (SnapshotWriter.stats + meta.yaml)
 - [x] SQLite state tracking: hangi cohort ne zaman scrape edildi (CohortStateTracker.register_cohort)
-- [ ] İlk gerçek cohort scrape'i: `cohort_20260301` (~1000+ ilan)
+- [x] İlk gerçek cohort scrape'i: `cohort_20250712` — 3 kategori (kazak: 195, elbise: 108, mont: 108) = **411 ilan**, 12 satıcı, ~36 dk
 
 ---
 
@@ -235,27 +235,59 @@
 > **Şablon:** Classification template (target: `sold_within_7_days`, binary)
 > **Kural:** Tüm takım üyeleri en az 1 bölüm sunmalı | Kod gizli (Show/Hide Code butonu)
 
-### Step 0 — Data Acquisition 🔴 BLOCKER
-> ⚠️ Bu adım tamamlanmadan hiçbir EDA yapılamaz. `data/raw_snapshots/` şu an BOŞ.
+### Step 0 — Data Acquisition � PARTIALLY DONE
+> ✅ Pilot cohort toplandı (411 ilan). Genişletme + labeling gerekiyor.
 
-- [ ] Selenium + Chrome WebDriver kurulumunu doğrula (`chromedriver --version`)
-- [ ] Pilot scrape çalıştır — 3 kategori × 3 sayfa (~180 ilan):
+- [x] Selenium + Chrome WebDriver kurulumunu doğrula (Selenium 4.41.0, Chrome 145)
+- [x] Pilot scrape çalıştır — 3 kategori × 2 sayfa (411 ilan):
   ```
-  python -m src.pipelines.scrape --cohort-id 20260308 --max-pages 3 --categories kazak elbise mont
+  python -m src.pipelines.scrape --cohort-id 20250712 --max-pages 2 --categories kazak elbise mont --no-headless
   ```
-- [ ] Pilot scrape başarılıysa genişlet — 6+ kategori × 5+ sayfa (~500-1000 ilan):
+- [x] JSONL çıktı dosyalarını doğrula: `data/raw_snapshots/cohort_20250712/*.jsonl`
+  - kazak.jsonl (195), elbise.jsonl (108), mont.jsonl (108), listings.jsonl (411), meta.yaml
+  - Field coverage: price, brand, condition, likes, photos %100 dolu
+  - Price: 40-12000 TL, avg 523 TL | Likes: 0-123, avg 10.0 | 12 unique seller
+- [ ] Genişletilmiş scrape — kalan 5 kategori (etek, gomlek, tshirt, sweatshirt, pantolon):
   ```
-  python -m src.pipelines.scrape --cohort-id 20260308 --max-pages 5
+  python -m src.pipelines.scrape --cohort-id 20250712_full --max-pages 3 --no-headless
   ```
-- [ ] JSONL çıktı dosyalarını doğrula: `data/raw_snapshots/cohort_20260308/*.jsonl`
 - [ ] **Labeling stratejisi kararı** (7 gün bekleyemiyorsak):
+  - **⚠️ DURUM:** Pilot cohort'ta `is_sold` tüm ilanlar için `False` (0/411) — seller profilleri aktif ilanları gösteriyor
   - **Seçenek A (İdeal):** 7 gün bekle → Phase 6 labeling → gerçek ground truth
-  - **Seçenek B (Pragmatik):** Scrape sırasında `is_sold` field'ını pseudo-label olarak kullan
-    (zaten satılmış görünen ilanlar var — bu %100 doğru olmasa da EDA sunumu için yeterli)
-  - **Seçenek C (Son çare):** Sentetik veri üret, sunumda açıkça belirt
-- [ ] Seçilen stratejiye göre label dosyası oluştur: `data/labels/cohort_20260308.jsonl`
-- [ ] Scrape kalitesi hızlı kontrol: 10 random ilan → site ile karşılaştır
+  - **Seçenek B (Pragmatik):** Engagement-based pseudo-label: `like_count >= threshold` → likely_to_sell
+  - **Seçenek C (Pratik):** Satılmış ürünler bulmak için eski ilanları kontrol et (404 = sold/removed)
+  - **Seçenek D (Son çare):** Sentetik label üret, sunumda açıkça belirt
+- [ ] Seçilen stratejiye göre label dosyası oluştur: `data/labels/cohort_20250712.jsonl`
+- [x] Scrape kalitesi hızlı kontrol: `scripts/validate_cohort.py` ile doğrulandı
 - [ ] JSONL'leri pandas DataFrame'e yükle, temel sanity check (`df.shape`, `df.columns`)
+
+### Step 0.5 — Feature Cleaning & Proxy Label (⚠️ HOCA GERİ BİLDİRİMİ)
+> 🔴 Ham veri üzerinden grafik çizmek YANLIŞ — önce veri temizlenmeli.
+> Hoca: "features ve yapılan grafikler yanlış olmuş, grafik yanlışı demek veri üzerinde ekstra çalışmak demek"
+
+**Feature Temizleme (grafik çizmeden ÖNCE yapılmalı):**
+- [ ] `brand` alanını split et → `brand_clean` + `size_extracted` ("Zara - S / 36 Beden" → brand="Zara", size="S / 36 Beden")
+- [ ] `condition` normalize et ("Yeni ve Etiketli" → "Yeni & Etiketli")
+- [ ] `category` = None → `category_scraped` kullan
+- [ ] `description_text` == `title` olan kayıtları flag'le (`desc_is_placeholder = True`)
+- [ ] `brand_tier` oluştur — **DATA-DRIVEN** (hoca: manuel değil, median fiyat bazlı)
+  - Marka başına median listing price hesapla → quantile bazlı 5 tier
+- [ ] `has_flaw_mention` feature ekle — keyword: "leke", "yırtık", "bozuk", "hafif", "küçük kusur"
+- [ ] `desc_has_urgency_keyword` feature ekle — keyword: "acil", "son fiyat", "fırsat", "pazarlık"
+- [ ] `price_to_category_median` türet (fiyat / kategori median fiyatı)
+
+**Proxy Label (target variable — 7 gün bekleyemiyoruz):**
+- [ ] Engagement-based proxy target oluştur:
+  - `like_count >= median + 1σ` AND `price < category_median` → `proxy_sold = 1`
+  - Aksi → `proxy_sold = 0`
+  - Sunumda **açıkça** "proxy label" olduğunu belirt
+  - Gerçek label: T+7 re-check ile gelecek (Phase 6)
+
+**Eksik Feature'lar (hoca geri bildirimi — not implemented, acknowledged):**
+- [ ] `is_negotiable` — Dolap'ta "fiyata itiraz" butonu. Parser'da yok → sunumda "planned feature" olarak belirt
+- [ ] `listing_date` / `day_of_week` — Dolap ilan tarihi göstermiyor → sunumda "data limitation" olarak belirt
+- [ ] `label_noise` limitation — "Satıldı" label'ı seller-reported, platform-verified değil → methodology'de acknowledge et
+- [ ] `deleted_listings` policy — 404 dönen ilanlar exclude edilecek → methodology'de belirt
 
 ### Step 1 — Notebook Skeleton & Section 1: Problem Formulation (~1.5 dk sunum)
 > Dosya: `notebooks/01_eda_presentation.ipynb`
@@ -272,6 +304,12 @@
   - Why it matters: Helps sellers optimize pricing, photo count, description quality
   - Domain context: Dolap.com = Turkey's largest second-hand fashion platform (owned by Trendyol)
   - Novelty: First ML study on Dolap.com (confirmed via Google Scholar search)
+- [ ] **Cell 2b (Markdown) — Hypotheses (⚠️ HOCA İSTEDİ — "exploration değil science"):**
+  - **H1:** Listings priced below category median → significantly higher P(sold within 7 days)
+  - **H2:** Listings with ≥3 photos → sell faster than single-photo listings, independent of price
+  - **H3:** Seller listing count (experience proxy) → stronger predictor than price in competitive categories
+  - **H4:** Listings with flaw mentions in description → sell significantly slower than comparable listings
+  - Her hipotez EDA boyunca test edilecek ve Step 6'da sonuçları raporlanacak
 
 ### Step 2 — Section 2: Data Collection (~1.5 dk sunum)
 
@@ -286,9 +324,12 @@
   - Cohort-based collection strategy
   - ETL decisions: JSONL streaming output, one file per category per cohort
 - [ ] **Cell 5 (Code) — Target Distribution:**
-  - `sold_within_7_days` value_counts bar chart
+  - `sold_within_7_days` (veya `proxy_sold`) value_counts bar chart
   - Class balance ratio hesapla ve yorumla
-  - Eğer pseudo-label kullanıldıysa bunu açıkça belirt
+  - ⚠️ Hoca: "%75-80 not-sold beklenir → accuracy metric kullanma"
+  - Primary metric: ROC-AUC | Secondary: F1-score
+  - class_weight='balanced' baseline olarak planlandı
+  - Eğer pseudo-label kullanıldıysa bunu açıkça belirt: "Proxy label — real label via T+7 re-check"
 
 ### Step 3 — Section 3.1: Schema Check & Missing Values (~1 dk sunum)
 
@@ -379,12 +420,14 @@
   | Outlier | `price` top 1% clip | Extreme luxury items distort model |
   | Outlier | `like_count` top 1% clip | Viral outliers |
   | Encoding | `condition` → ordinal (0-3) | Natural order: Kullanılmış < Az Kullanılmış < Yeni < Yeni & Etiketli |
-  | Encoding | `brand` → 5-tier ordinal (Budget→Luxury) | Reduces 100+ brands to 5 tiers |
+  | Encoding | `brand` → 5-tier ordinal (Budget→Luxury) **DATA-DRIVEN** | Median price per brand → quantile tiers (hoca: "objective and reproducible") |
   | Encoding | `category`, `color` → target encoding | High cardinality → target-based numeric |
   | Scaling | StandardScaler for LR, none for tree models | LR is distance-based |
   | New Feature | `price_to_category_median` | Relative pricing within category |
   | New Feature | `desc_has_urgency_keyword` | Urgency words: "acil", "son fiyat", "fırsat" |
-  | New Feature | `listing_hour`, `is_weekend_listing` | Temporal patterns in buyer behavior |
+  | New Feature | `has_flaw_mention` | Flaw words: "leke", "yırtık", "bozuk", "hafif kusur" (hoca önerisi) |
+  | Limitation | `listing_hour`, `day_of_week` | ⚠️ Dolap ilan tarihi göstermiyor — scrape_at kullanılamaz |
+  | Planned | `is_negotiable` | ⚠️ Parser'da yok — gelecek iteration'da eklenecek |
 - [ ] **Cell 20 (Code) — Feature Engineering Code:**
   - Brand tier mapping (configs/features.yaml'dan)
   - Condition ordinal encoding
@@ -422,6 +465,14 @@
   - **Root Cause:** 3 farklı durum var: sold, removed_by_seller, page_expired
   - **Fix:** Labeling'de 3-class distinction → binary target'a dönüştürürken
     sadece "confirmed sold" ve "confirmed active" kullan, ambiguous olanları at
+- [ ] **Bug 6 — Brand/Size Field Contamination (⚠️ GERÇEK VERİDE KEŞFEDİLDİ):**
+  - **Evidence:** `brand` = "Zara - S / 36 Beden" → marka + beden birleşik (203 unique ham, 95 temiz)
+  - **Root Cause:** Dolap HTML'de brand ve size bilgisi tek bir element'te birleşik
+  - **Fix:** " - " delimiter ile split → `brand_clean` + `size_extracted` (365/411 size recover edildi)
+- [ ] **Bug 7 — Description Field = Page Title (⚠️ GERÇEK VERİDE KEŞFEDİLDİ):**
+  - **Evidence:** 292/411 kayıtta `description_text` == `title` (parser gerçek açıklamayı çekememiş)
+  - **Root Cause:** description_text aslında `<title>` tag veya meta tag'dan geliyor
+  - **Fix:** `desc_is_placeholder` flag ekle, bu kayıtlarda `description_length` feature'ını güvenilmez say
 - [ ] **Her bug için Cell (Code):** Ham veri kanıtı → before/after gösterimi
 
 ### Step 9 — Presentation Polish & Rehearsal
@@ -669,8 +720,8 @@
 | Milestone | Durum | Tamamlanan Phase |
 |-----------|-------|------------------|
 | 🏗️ M0 — Foundation | ✅ Tamamlandı | Phase 0, 0.5, 1 |
-| 🌐 M1 — Data Collection | 🔄 Devam Ediyor | Phase 2, 3, 4 |
-| 🎤 **EDA Presentation** | 🔴 **AKTİF — ÖNCELİK** | Step 0 (BLOCKER) |
+| 🌐 M1 — Data Collection | ✅ Tamamlandı | Phase 2, 3, 4, 5 |
+| 🎤 **EDA Presentation** | 🟡 **AKTİF — ÖNCELİK** | Step 0 (pilot ✅, genişletme gerekli) |
 | ⏳ M2 — Temporal Labeling | ⏳ Bekliyor | — |
 | 🧹 M3 — Data Processing | ⏳ Bekliyor (Phase 10 → EDA Pres.) | — |
 | 🤖 M4 — Modeling | ⏳ Bekliyor | — |
@@ -689,6 +740,7 @@
 | 6 | `556c8a7` | `merge: sync develop into main (Phase 0.5 Part 2)` | main |
 | 7 | `8bacbfc` | `feat: dolap site reverse engineering` | develop |
 | 8 | `42ef94f` | `feat: basic scraper prototype` | develop |
+| 9 | `b154319` | `feat(M1): complete cohort scraping pipeline with pilot data collection` | develop |
 
 ## 🏗️ Altyapı Envanteri
 
@@ -719,7 +771,7 @@ configs/
 src/scraping/
 ├── __init__.py         ← Public API re-exports (DolapScraper, parsers, RateLimiter, BanDetector, SessionManager, SnapshotWriter, CohortStateTracker)
 ├── parsers.py          ← 17 HTML parse fonksiyonu (~400 satır)
-├── scraper.py          ← Selenium-based DolapScraper sınıfı (~530 satır, Phase 4 entegrasyonlu)
+├── scraper.py          ← Selenium-based DolapScraper sınıfı (~857 satır, profile-based crawling, JS DOM extraction)
 ├── rate_limiter.py     ← RateLimiter, BanDetector, SessionManager, build_proxy_options (~320 satır)
 └── storage.py          ← SnapshotWriter (append-only JSONL, dedup, meta.yaml) + CohortStateTracker (SQLite lifecycle) (~460 satır)
 ```
@@ -745,19 +797,18 @@ src/evaluation/         ← ⏳ Boş (Phase 15-17)
 
 ## ⚡ Sonraki Adım
 
-> **🔴 EDA PRESENTATION — Step 0: Data Acquisition**
+> **� EDA PRESENTATION — Step 0 kısmen tamamlandı, devam ediliyor**
 >
-> Tüm öncelik EDA sunumuna kaydırıldı. Sıralama:
+> Pilot cohort toplandı (411 ilan, 3 kategori). Sıralama:
 >
-> 1. **BUGÜN:** Scraper'ı çalıştır → en az 500+ ilan topla (Step 0)
-> 2. **BUGÜN:** Pseudo-label oluştur (`is_sold` field'ını kullan) veya
->    7 gün beklenebiliyorsa gerçek labeling planla
-> 3. **YARIN:** Notebook skeleton oluştur (Step 1-2)
-> 4. **YARIN:** Schema + Statistics + Distributions (Step 3-5)
-> 5. **+1 GÜN:** Relationships + Feature Engineering (Step 6-7)
-> 6. **+1 GÜN:** Investigation — veri kalitesi sorunlarını bul ve düzelt (Step 8)
+> 1. **ŞİMDİ:** Kalan 5 kategoriyi scrape et → hedef 1000+ ilan (Step 0)
+> 2. **ŞİMDİ:** Labeling stratejisi belirle ve pseudo-label oluştur
+>    (is_sold tüm ilanlar için False — engagement-based veya 7-gün re-check gerekli)
+> 3. **SONRA:** Notebook skeleton oluştur (Step 1-2)
+> 4. **SONRA:** Schema + Statistics + Distributions (Step 3-5)
+> 5. **SONRA:** Relationships + Feature Engineering (Step 6-7)
+> 6. **SONRA:** Investigation — veri kalitesi sorunlarını bul ve düzelt (Step 8)
 > 7. **SUNUM ÖNCESİ:** Polish + Rehearsal (Step 9)
 >
-> ⚠️ Phase 4 (Anti-Ban) ve Phase 5 (Snapshot Storage) EDA sunumundan
-> sonraya ertelendi. Mevcut scraper temel düzeyde çalışıyor ve
-> sunum için yeterli veri toplayabilir.
+> ✅ M0 Foundation ve M1 Data Collection tamamlandı.
+> 📊 Pilot veri: 411 ilan | 3 kategori | 12 satıcı | %100 field coverage
