@@ -1,9 +1,9 @@
 # 📋 Dolap Sale Prediction — Master TODO
 
-> **Son güncelleme:** 2026-03-08 (EDA notebook tamamlandı)
-> **Branch:** `develop` | **Son commit:** `e750147`
-> **Durum:** M1 ✅ | EDA Notebook ✅ | 🎤 **Prova + görev dağılımı kaldı**
-> **Öncelik:** Step 9 — Presentation Polish & Rehearsal (10 dk prova, takım üyesi dağılımı)
+> **Son güncelleme:** 2026-03-10 (M2 labeling sistemi + yeni cohort scrape başlatıldı)
+> **Branch:** `develop` | **Son commit:** `14f32b4`
+> **Durum:** M1 ✅ | EDA Notebook ✅ | M2 🟡 **Labeling sistemi hazır, cohort_20260310 scrape devam ediyor**
+> **Öncelik:** M2 Phase 6-7 — Veri toplama + 7 günlük labeling
 
 ---
 
@@ -483,37 +483,45 @@
 > Ground truth doğal olarak Dolap'tan elde ediliyor — ama bu 7 günlük
 > bekleme süresini disiplinli yönetmeyi gerektiriyor.
 
-### Phase 6 — 7-Day Labeling Mechanism
+### Phase 6 — 7-Day Labeling Mechanism ✅
 > commit hedefi: `feat: temporal labeling mechanism`
 
-- [ ] `src/labeling/status_checker.py` — ilan durum kontrol sınıfı
+- [x] `src/labeling/status_checker.py` — ilan durum kontrol sınıfı
   - URL'yi ziyaret et
   - HTTP 404/410 → `removed`
   - "Satıldı" badge → `sold_within_7_days = 1`
   - Hâlâ aktif → `sold_within_7_days = 0`
   - Sayfa parse hatası → `error` (ayrı kaydet)
-- [ ] `src/labeling/labeler.py` — batch labeling orchestrator
+- [x] `src/labeling/labeler.py` — batch labeling orchestrator
   - Bir cohort'taki tüm ilanları sırayla kontrol et
   - Anti-ban kurallarına uy (Phase 4'ten miras)
-- [ ] Label output: `data/labels/cohort_{YYYYMMDD}.jsonl`
+- [x] Label output: `data/labels/cohort_{YYYYMMDD}.jsonl`
   - Her satır: `{listing_id, url, status, sold_within_7_days, checked_at}`
-- [ ] `src/pipelines/label.py` implementasyonu (skeleton → gerçek)
-- [ ] Edge case'ler:
-  - İlan silindi ama satılmadı → `removed_unsold` (veri setinden çıkar veya ayrı sınıf)
-  - İlan fiyatı değişti → logla (fiyat değişimi feature olabilir)
-  - İlan hâlâ aktif ama 404 → retry logic
-- [ ] Labeling süreci logu: `X satıldı / Y aktif / Z hata`
+- [x] `src/pipelines/label.py` implementasyonu (skeleton → gerçek)
+  - `--auto` flag: 7+ gün geçmiş cohort'ları otomatik tespit
+  - `--force` flag: mevcut label'ları yeniden yaz
+  - `--no-headless` flag: debug modunda görünür browser
+- [x] Edge case'ler:
+  - İlan silindi ama satılmadı → `removed` status (sold_within_7_days = None)
+  - İlan hâlâ aktif ama 404 → retry logic (3 deneme)
+  - Ban tespit → batch abort + partial results saved
+- [x] Labeling süreci logu: summary.yaml ile (sold/active/removed/error sayıları)
+- [x] `clean_features.py` güncellendi: `--merge-labels` flag ile gerçek label desteği
 
-### Phase 7 — First Cohort Lifecycle
+### Phase 7 — First Cohort Lifecycle 🟡
 > commit hedefi: `feat: first cohort labeled`
 
-- [ ] **Gün 1:** Cohort_01 scrape (~1000+ ilan)
-- [ ] **Gün 2-7:** Bekleme (isteğe bağlı: Cohort_02 scrape başlat)
-- [ ] **Gün 8:** Cohort_01 re-check → labeling
+- [x] **Gün 1 (10 Mart):** cohort_20260310 scrape başlatıldı — 8 kategori × 5 sayfa
+  - Kategoriler: kazak, elbise, mont, etek, gomlek, tshirt, sweatshirt, pantolon
+  - Crash-safe pipeline: her ilan anında diske yazılır
+- [ ] **Gün 2-7 (11-16 Mart):** Bekleme (ilave cohort scrape yapılabilir)
+- [ ] **Gün 8 (17 Mart):** cohort_20260310 re-check → labeling
+  - `python -m src.pipelines.label --cohort-id 20260310 --no-headless`
+- [ ] **Ayrıca:** cohort_20250712 zaten 8 Mart'ta çekilmişti → **15 Mart'ta label'lanabilir**
+  - `python -m src.pipelines.label --cohort-id 20250712 --no-headless`
 - [ ] Label dağılımı analizi: sold vs not_sold oranı
 - [ ] Veri kalitesi raporu: eksik alanlar, parse hataları
-- [ ] **Gün 8+:** Cohort_02, Cohort_03... paralel devam
-- [ ] Hedef: minimum 3 cohort, 3000+ etiketli ilan
+- [ ] Hedef: minimum 2 cohort labeled, 1000+ etiketli ilan
 
 ---
 
