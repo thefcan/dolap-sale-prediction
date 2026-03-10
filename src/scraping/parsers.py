@@ -210,30 +210,55 @@ def parse_product_detail(html: str | Tag, url: str = "") -> dict[str, Any]:
 
 
 def _parse_breadcrumbs(soup: BeautifulSoup) -> dict[str, str | None]:
-    """Extract category hierarchy from breadcrumb navigation."""
+    """Extract category hierarchy from breadcrumb navigation.
+
+    Strategy priority:
+    1. JSON-LD ``BreadcrumbList`` (most reliable, structured data)
+    2. ``<ul class="breadcrumb">`` HTML element
+    3. Fallback: empty result
+    """
+    import json as _json
+
     result: dict[str, str | None] = {"category": None, "subcategory": None}
 
-    # Breadcrumbs: "Ana Sayfa > Elektronik > Telefon Aksesuarı > Telefon Kılıfı > Apple"
-    # We want the 2nd-to-last and 3rd-to-last levels
-    # Try: look for breadcrumb-like link sequences or text
-    bc_links = []
-    for a in soup.find_all("a"):
-        text = _clean(a.get_text())
-        href = a.get("href", "")
-        if text and href and text not in ("Ana Sayfa", "GİRİŞ YAP", "Markalar"):
-            # breadcrumb links typically point to dolap.com/ category paths
-            if href.startswith("https://dolap.com/") or (
-                href.startswith("/") and "/urun/" not in href and "/profil/" not in href
-            ):
-                bc_links.append(text)
+    # Strategy 1: JSON-LD BreadcrumbList
+    for script in soup.find_all("script", type="application/ld+json"):
+        raw = script.string or ""
+        if "BreadcrumbList" not in raw:
+            continue
+        try:
+            ld = _json.loads(raw)
+            items = ld.get("itemListElement", [])
+            # items: [{position, item: {name, ...}}, ...]
+            # Typical: ANASAYFA > Giyim > Üst Giyim > T-Shirt > "Koton T-Shirt"
+            # The LAST item is brand+category (e.g. "Koton T-Shirt") → skip it
+            # The second-to-last is the actual category (e.g. "T-Shirt")
+            names = [it.get("item", {}).get("name", "") for it in items]
+            names = [n for n in names if n and n.upper() != "ANASAYFA"]
+            if len(names) >= 2:
+                # Skip last (brand+category), use second-to-last
+                result["category"] = names[-2]  # T-Shirt
+                if len(names) >= 3:
+                    result["subcategory"] = names[-3]  # Üst Giyim
+            elif len(names) == 1:
+                result["category"] = names[0]
+            return result
+        except (_json.JSONDecodeError, AttributeError):
+            pass
 
-    # The page typically shows: Ana Sayfa > MainCat > SubCat > SubSubCat > Brand
-    # We'll try to detect the breadcrumb by finding "KATEGORİLER" section
-    # or by checking the page structure
-    breadcrumb_text = soup.get_text()
+    # Strategy 2: <ul class="breadcrumb"> HTML
+    bc_ul = soup.find("ul", class_=re.compile(r"breadcrumb", re.I))
+    if bc_ul:
+        links = []
+        for a in bc_ul.find_all("a"):
+            text = _clean(a.get_text())
+            if text and text not in ("Ana Sayfa",):
+                links.append(text)
+        if links:
+            result["category"] = links[-1]  # deepest
+            if len(links) >= 2:
+                result["subcategory"] = links[-2]
 
-    # Fallback: try to extract from URL slug
-    # /urun/{brand}-{color}-{category-slug}-{condition}-{user}-{id}
     return result
 
 
@@ -241,41 +266,65 @@ def _parse_brand(soup: BeautifulSoup, breadcrumbs: dict) -> str | None:
     """Extract brand name.
 
     Strategy priority:
-    1. <h1> or heading containing just the brand name
-    2. Product title area near the price section
-    3. Breadcrumb last element (often brand)
+    1. ``<h1>`` in ``title-holder`` → ``"Koton - M / 38 Beden"`` → brand = ``"Koton"``
+    2. Last item of BreadcrumbList JSON-LD (brand+category) → first word
+    3. ``<title>`` tag fallback
     """
-    # Strategy 1: The brand name appears as a standalone heading / title
-    # On Dolap product pages, the brand appears prominently
-    # Look for the main product info section
-    page_text = soup.get_text(separator="\n")
+    # Strategy 1: <h1> in title-holder → "Koton - M / 38 Beden" → split by " - "
+    title_holder = soup.find("div", class_="title-holder")
+    if title_holder:
+        h1 = title_holder.find("h1")
+        if h1:
+            text = _clean(h1.get_text())
+            if text:
+                # "Koton - M / 38 Beden" → brand = "Koton"
+                # "Zara" (no size) → brand = "Zara"
+                parts = text.split(" - ", 1)
+                brand = parts[0].strip()
+                if brand:
+                    return brand
 
-    # Look for pattern: Brand name near "Telefon Kılıfı" or category name
-    # The product page shows: "Apple Telefon Kılıfı" or "Zara Kazak"
-    for h in soup.find_all(["h1", "h2", "h3"]):
-        text = _clean(h.get_text())
-        if text and len(text) < 50:
-            # This might be the brand name shown as heading
-            # On Dolap, h1 often just shows the brand
-            return text
+    # Strategy 2: <title> tag → "Koton T-Shirt | Dolap.com"
+    title_tag = soup.find("title")
+    if title_tag:
+        text = _clean(title_tag.get_text())
+        if text:
+            for suffix in [" - Dolap.com", " | Dolap", " - dolap.com"]:
+                if text.endswith(suffix):
+                    text = text[: -len(suffix)].strip()
+            return text or None
 
     return None
 
 
 def _parse_title(soup: BeautifulSoup) -> str | None:
-    """Extract the listing title (Brand + Category combo)."""
-    # On Dolap, title is typically "Apple Telefon Kılıfı" pattern
-    # Shown in <title> or og:title meta
+    """Extract the listing title.
+
+    Strategy:
+    1. ``<h1>`` inside ``title-holder`` → ``"Koton - M / 38 Beden"``
+    2. ``<title>`` tag → ``"Koton T-Shirt Yeni & Etiketli…"``
+    3. ``og:title`` meta tag
+    """
+    # Strategy 1: <h1> in title-holder (product heading)
+    title_holder = soup.find("div", class_="title-holder")
+    if title_holder:
+        h1 = title_holder.find("h1")
+        if h1:
+            text = _clean(h1.get_text())
+            if text:
+                return text
+
+    # Strategy 2: <title> tag
     title_tag = soup.find("title")
     if title_tag:
         text = _clean(title_tag.get_text())
         if text:
-            # Remove site name suffix if present
             for suffix in [" - Dolap.com", " | Dolap", " - dolap.com"]:
                 if text.endswith(suffix):
                     text = text[: -len(suffix)].strip()
             return text
 
+    # Strategy 3: og:title
     og_title = soup.find("meta", property="og:title")
     if og_title and og_title.get("content"):
         return _clean(og_title["content"])
@@ -284,15 +333,44 @@ def _parse_title(soup: BeautifulSoup) -> str | None:
 
 
 def _parse_prices(soup: BeautifulSoup) -> dict[str, float | None]:
-    """Extract current and (optional) original price."""
+    """Extract current and (optional) original price.
+
+    Strategy priority:
+    1. ``<div class="price-block">`` → primary price area
+    2. ``<div class="price-detail">`` → clean price text
+    3. Fallback: regex scan of full page text
+    """
     result = {"current": None, "original": None}
 
-    # Find all price-like text in the page
+    # Strategy 1: price-block div (contains current + optional original)
+    price_block = soup.find("div", class_="price-block")
+    if price_block:
+        # Look for strikethrough (original) price
+        strike = price_block.find(["del", "s", "strike"])
+        if strike:
+            result["original"] = _extract_price(strike.get_text())
+
+        # The first price-detail in price-block is the current price
+        price_detail = price_block.find("div", class_="price-detail")
+        if price_detail:
+            result["current"] = _extract_price(price_detail.get_text())
+        else:
+            # Fallback: first TL price in price-block
+            result["current"] = _extract_price(price_block.get_text())
+
+        if result["current"] is not None:
+            return result
+
+    # Strategy 2: standalone price-detail divs
+    price_details = soup.find_all("div", class_="price-detail")
+    if price_details:
+        result["current"] = _extract_price(price_details[0].get_text())
+        return result
+
+    # Strategy 3: regex fallback
     page_text = soup.get_text(separator="\n")
     price_matches = _PRICE_RE.findall(page_text)
-
     if price_matches:
-        # Parse all found prices
         prices = []
         for raw in price_matches:
             p = raw.replace(".", "").replace(",", ".")
@@ -300,9 +378,7 @@ def _parse_prices(soup: BeautifulSoup) -> dict[str, float | None]:
                 prices.append(float(p))
             except ValueError:
                 continue
-
         if len(prices) >= 2 and prices[0] > prices[1]:
-            # First price is original (strikethrough), second is current
             result["original"] = prices[0]
             result["current"] = prices[1]
         elif len(prices) >= 1:
@@ -312,7 +388,12 @@ def _parse_prices(soup: BeautifulSoup) -> dict[str, float | None]:
 
 
 def _parse_condition(soup: BeautifulSoup) -> str | None:
-    """Detect condition badge text."""
+    """Detect condition badge text.
+
+    Strategy priority:
+    1. ``<span class="subtitle">`` in title-block (most reliable)
+    2. Full-text keyword search (fallback)
+    """
     conditions = [
         "Yeni ve Etiketli",
         "Yeni & Etiketli",
@@ -322,6 +403,22 @@ def _parse_condition(soup: BeautifulSoup) -> str | None:
         "Kullanılmış",
         "Defolu",
     ]
+
+    # Strategy 1: <span class="subtitle"> in title-block
+    title_block = soup.find("div", class_="title-block")
+    if title_block:
+        for span in title_block.find_all("span", class_="subtitle"):
+            text = _clean(span.get_text())
+            if text and text in conditions:
+                return text
+
+    # Strategy 2: any <span class="subtitle"> matching conditions
+    for span in soup.find_all("span", class_="subtitle"):
+        text = _clean(span.get_text())
+        if text and text in conditions:
+            return text
+
+    # Strategy 3: full-text fallback
     page_text = soup.get_text()
     for cond in conditions:
         if cond in page_text:
@@ -330,40 +427,61 @@ def _parse_condition(soup: BeautifulSoup) -> str | None:
 
 
 def _parse_color(soup: BeautifulSoup, url: str = "") -> str | None:
-    """Extract colour from colour swatch or URL slug."""
-    # Strategy 1: Look for colour label text (e.g. "Bej" next to swatch img)
-    for img in soup.find_all("img"):
-        alt = img.get("alt", "")
-        src = img.get("src", "")
-        if "colour" in src or "color" in src:
-            if alt:
-                return _clean(alt)
+    """Extract colour from page elements or URL slug.
+
+    Strategy priority:
+    1. ``<title>`` tag often contains color ("Koton Desenli T-Shirt")
+    2. URL slug second segment (brand-color-category-...)
+    """
+    # Known Dolap colour values
+    _COLORS = {
+        "siyah", "beyaz", "kirmizi", "kırmızı", "mavi", "lacivert",
+        "yesil", "yeşil", "sari", "sarı", "turuncu", "mor", "pembe",
+        "gri", "kahverengi", "bej", "krem", "bordo", "haki", "ekru",
+        "fuşya", "lila", "turkuaz", "pudra", "antrasit", "camel",
+        "altın", "gümüş", "mercan", "kiremit", "hardal",
+        "desenli", "çizgili", "karışık", "renkli", "çok renkli",
+    }
+
+    # Strategy 1: Parse from <title> tag ("Koton Desenli T-Shirt Yeni...")
+    title_tag = soup.find("title")
+    if title_tag:
+        title_text = (title_tag.get_text() or "").lower()
+        for color in _COLORS:
+            if color in title_text:
+                return color.capitalize()
 
     # Strategy 2: Parse from URL slug
-    # URL pattern: /urun/{brand}-{color}-{category}-{condition}-{user}-{id}
     if url:
-        parts = url.rstrip("/").split("/")
-        if parts:
-            slug = parts[-1]
-            # Split by the last numeric id
-            slug_parts = slug.rsplit("-", 1)
-            if len(slug_parts) == 2 and slug_parts[1].isdigit():
-                # Remove the user part
-                remaining = slug_parts[0]
-                # The color is typically the 2nd segment
-                segments = remaining.split("-")
-                if len(segments) >= 3:
-                    # brand-color-cat...-condition-user
-                    # Color is segments[1] (after brand)
-                    return segments[1].capitalize()
+        slug_parts = url.rstrip("/").split("/")[-1].split("-")
+        for part in slug_parts:
+            if part.lower() in _COLORS:
+                return part.capitalize()
 
     return None
 
 
 def _parse_size(soup: BeautifulSoup) -> str | None:
-    """Extract size from product details area."""
-    # Size appears in product detail area for clothing items
-    # Common patterns: "S", "M", "L", "36", "38", "4XL / 48"
+    """Extract size from product details area.
+
+    Strategy:
+    1. ``<h1>`` in ``title-holder`` → ``"Koton - M / 38 Beden"`` → ``"M / 38 Beden"``
+    2. Regex fallback on page text
+    """
+    # Strategy 1: <h1> in title-holder → split by " - " → second part is size
+    title_holder = soup.find("div", class_="title-holder")
+    if title_holder:
+        h1 = title_holder.find("h1")
+        if h1:
+            text = _clean(h1.get_text())
+            if text and " - " in text:
+                parts = text.split(" - ", 1)
+                size_part = parts[1].strip()
+                # Remove "Beden" suffix for cleaner output
+                if size_part:
+                    return size_part
+
+    # Strategy 2: regex fallback
     page_text = soup.get_text()
     size_patterns = [
         r"Beden[:\s]+([A-Z0-9/\s]+)",
@@ -378,31 +496,55 @@ def _parse_size(soup: BeautifulSoup) -> str | None:
 
 
 def _parse_description(soup: BeautifulSoup) -> str | None:
-    """Extract seller description text."""
-    # The description is the free-text area written by the seller
-    # On Dolap it appears below the product details
-    # We look for longer text blocks that aren't navigation / boilerplate
+    """Extract seller description text.
+
+    Strategy priority:
+    1. ``<div class="profile-block">`` seller description area
+    2. og:description meta tag
+    3. Heuristic text search (fallback)
+    """
+    # Strategy 1: <p> inside profile-block > remarks-block
+    profile_block = soup.find("div", class_="profile-block")
+    if profile_block:
+        # Description is in <div class="remarks-block"> > <p>
+        remarks = profile_block.find("div", class_="remarks-block")
+        if remarks:
+            p_tag = remarks.find("p")
+            if p_tag:
+                text = _clean(p_tag.get_text())
+                if text and len(text) > 5:
+                    return text
+        # Fallback: any <p> in profile-block
+        for p_tag in profile_block.find_all("p"):
+            text = _clean(p_tag.get_text())
+            if text and len(text) > 10:
+                return text
+
+    # Strategy 2: og:description meta tag
+    og_desc = soup.find("meta", property="og:description")
+    if og_desc and og_desc.get("content"):
+        desc = _clean(og_desc["content"])
+        if desc and len(desc) > 10:
+            return desc
+
+    # Strategy 3: heuristic fallback
     page_text = soup.get_text(separator="\n")
     lines = [_clean(line) for line in page_text.split("\n") if _clean(line)]
-
-    # Heuristic: find text blocks that are descriptive (20+ chars)
-    # and not navigation elements
     skip_patterns = [
         "KATEGORİLER", "BENZER ÜRÜNLER", "Popüler Aramalar",
-        "Dolap Hakkında", "Kol Çantası", "Kategoriler",
-        "Tanımlama bilgilerini", "Ödeme Seçenekleri",
-        "Yorum Yayınlanma", "PAYLAŞ", "Dolap Avantajları",
+        "Dolap Hakkında", "Kategoriler", "Tanımlama bilgilerini",
+        "Ödeme Seçenekleri", "Yorum Yayınlanma", "PAYLAŞ",
+        "Dolap Avantajları", "Teklif Nasıl",
     ]
     for line in lines:
         if not line or len(line) < 20:
             continue
         if any(skip in line for skip in skip_patterns):
             continue
-        # Description is typically a sentence about the product
         if any(kw in line.lower() for kw in [
             "kılıf", "elbise", "kazak", "mont", "pantolon", "ayakkabı",
             "çanta", "gömlek", "etek", "tshirt", "bot", "çizme",
-            "kullanılmamış", "sıfır", "orjinal", "modelleri", "mevcut",
+            "kullanılmamış", "sıfır", "orjinal", "mevcut",
             "renk", "beden", "kargo", "yeni", "tertemiz",
         ]):
             return line
@@ -411,45 +553,81 @@ def _parse_description(soup: BeautifulSoup) -> str | None:
 
 
 def _parse_photo_count(soup: BeautifulSoup) -> int:
-    """Count product images (carousel slides or thumbnails)."""
-    # Product images are typically in img tags with "product" in src
-    count = 0
+    """Count product images (carousel slides or thumbnails).
+
+    Strategy:
+    1. Images from ``dsmcdn.com`` with ``/product/`` path (actual product photos)
+    2. OG image as minimum-1 fallback
+    """
     seen_srcs: set[str] = set()
+
     for img in soup.find_all("img"):
-        src = img.get("src", "")
-        if "product" in src or "dlp_" in src or "dsmcdn" in src:
-            if src not in seen_srcs:
-                seen_srcs.add(src)
-                count += 1
-    # Fallback: alt text pattern "Brand Kategori" repeated = carousel
+        src = img.get("src", "") or img.get("data-src", "")
+        # Product images are hosted on dsmcdn.com under /product/ path
+        if "dsmcdn" in src and "/product/" in src:
+            # Normalise: strip resize params to dedup same image at diff sizes
+            base = src.split("?")[0]
+            # Remove mnresize prefix variations
+            base = re.sub(r"/mnresize/\d+/\d+/", "/", base)
+            if base not in seen_srcs:
+                seen_srcs.add(base)
+
+    count = len(seen_srcs)
+
+    # Fallback: if nothing found, check og:image exists
     if count == 0:
-        alt_pattern_count = 0
-        for img in soup.find_all("img"):
-            alt = img.get("alt", "")
-            if alt and ("Telefon" in alt or "Kazak" in alt or "Elbise" in alt):
-                alt_pattern_count += 1
-        count = alt_pattern_count
+        og_img = soup.find("meta", property="og:image")
+        if og_img and og_img.get("content"):
+            count = 1
+
     return count
 
 
 def _parse_engagement(soup: BeautifulSoup) -> dict[str, int | None]:
-    """Extract like and comment counts."""
+    """Extract like and comment counts.
+
+    Strategy priority:
+    - Likes:  ``<a class="product-likes">`` in ``likes-block`` (hidden-xs)
+    - Comments: ``<span class="comment-count">`` in ``<h2>Yorumlar (N)</h2>``
+    - Fallback: regex on page text
+    """
     result = {"likes": None, "comments": None}
-    page_text = soup.get_text()
 
-    # Like pattern: "32 Beğeni"
-    like_match = re.search(r"(\d+)\s*Beğeni", page_text)
-    if like_match:
-        result["likes"] = int(like_match.group(1))
+    # ── Likes ────────────────────────────────────────────────────────
+    # Strategy 1: likes-block (hidden-xs) → "N\n Beğeni"
+    likes_block = soup.find("div", class_="likes-block")
+    if likes_block:
+        like_link = likes_block.find("a", class_="product-likes")
+        if like_link:
+            nums = _NUMERIC_RE.findall(like_link.get_text())
+            if nums:
+                result["likes"] = int(nums[0])
 
-    # Comment pattern: "Yorumlar (0)" or "0 Yorum"
-    comment_match = re.search(r"Yorumlar?\s*\((\d+)\)", page_text)
-    if comment_match:
-        result["comments"] = int(comment_match.group(1))
-    else:
-        comment_match2 = re.search(r"(\d+)\s*Yorum", page_text)
-        if comment_match2:
-            result["comments"] = int(comment_match2.group(1))
+    # Strategy 2: regex fallback for likes
+    if result["likes"] is None:
+        page_text = soup.get_text()
+        like_match = re.search(r"(\d+)\s*Beğeni", page_text)
+        if like_match:
+            result["likes"] = int(like_match.group(1))
+
+    # ── Comments ─────────────────────────────────────────────────────
+    # Strategy 1: <span class="comment-count"> in <h2>Yorumlar (N)</h2>
+    cc_span = soup.find("span", class_="comment-count")
+    if cc_span:
+        cc_text = cc_span.get_text().strip()
+        if cc_text.isdigit():
+            result["comments"] = int(cc_text)
+
+    # Strategy 2: regex fallback
+    if result["comments"] is None:
+        page_text = page_text if "page_text" in dir() else soup.get_text()
+        comment_match = re.search(r"Yorumlar?\s*\((\d+)\)", page_text)
+        if comment_match:
+            result["comments"] = int(comment_match.group(1))
+        else:
+            comment_match2 = re.search(r"(\d+)\s*Yorum", page_text)
+            if comment_match2:
+                result["comments"] = int(comment_match2.group(1))
 
     return result
 
@@ -479,25 +657,43 @@ def _is_buyer_pays(shipping_info: str | None) -> bool:
 
 
 def _parse_seller(soup: BeautifulSoup) -> dict[str, Any]:
-    """Extract seller username and listing count from product page."""
+    """Extract seller username and listing count from product page.
+
+    The seller appears in ``<div class="profile-block">`` as a link
+    to ``/profil/{username}`` with listing count in parentheses.
+    """
     result: dict[str, Any] = {"username": None, "listing_count": None}
 
-    # Seller appears as a link to /profil/{username} with (count)
+    # Strategy 1: profile-block div (primary seller, not similar products)
+    profile_block = soup.find("div", class_="profile-block")
+    if profile_block:
+        for a in profile_block.find_all("a", href=True):
+            href = a.get("href", "")
+            if "/profil/" in href:
+                parts = href.rstrip("/").split("/profil/")
+                if len(parts) == 2 and parts[1]:
+                    username = parts[1].split("?")[0].split("#")[0]
+                    result["username"] = username
+                    # Listing count: parent text contains "(N)"
+                    parent_text = a.parent.get_text() if a.parent else ""
+                    count_match = re.search(r"\((\d+)\)", parent_text)
+                    if count_match:
+                        result["listing_count"] = int(count_match.group(1))
+                    return result
+
+    # Strategy 2: first /profil/ link on page (fallback)
     for a in soup.find_all("a", href=True):
         href = a.get("href", "")
         if "/profil/" in href:
-            # Extract username from /profil/{username}
             parts = href.rstrip("/").split("/profil/")
             if len(parts) == 2 and parts[1]:
-                username = parts[1]
+                username = parts[1].split("?")[0].split("#")[0]
                 result["username"] = username
-
-                # Look for listing count in nearby text: "iphonelcase (1221)"
                 parent_text = a.parent.get_text() if a.parent else ""
                 count_match = re.search(r"\((\d+)\)", parent_text)
                 if count_match:
                     result["listing_count"] = int(count_match.group(1))
-                break  # first seller link is the product seller
+                break
 
     return result
 

@@ -1,9 +1,9 @@
 # 📋 Dolap Sale Prediction — Master TODO
 
-> **Son güncelleme:** 2026-03-10 (M2 labeling sistemi + yeni cohort scrape başlatıldı)
-> **Branch:** `develop` | **Son commit:** `14f32b4`
-> **Durum:** M1 ✅ | EDA Notebook ✅ | M2 🟡 **Labeling sistemi hazır, cohort_20260310 scrape devam ediyor**
-> **Öncelik:** M2 Phase 6-7 — Veri toplama + 7 günlük labeling
+> **Son güncelleme:** 2026-03-11 (Parser iyileştirme + 2000 listing scrape başlatıldı)
+> **Branch:** `develop` | **Son commit:** `0f26358`
+> **Durum:** M1 ✅ | EDA ✅ | M2 🟡 **Phase 6 ✅, Phase 7 scrape devam ediyor (cohort_20260311)**
+> **Öncelik:** M2 Phase 7 — 2000 listing toplama + 7 günlük labeling
 
 ---
 
@@ -36,9 +36,9 @@
 │  ├── Step 8  — Investigation (Data Quality Bugs)             ✅         │
 │  └── Step 9  — Presentation Polish & Rehearsal               🟡 prova  │
 │                                                                         │
-│  ⏳ M2 — TEMPORAL LABELING SYSTEM                           [░░░░░░░░] ⏳│
-│  ├── Phase 6   — 7-Day Labeling Mechanism                               │
-│  └── Phase 7   — First Cohort: Collect → Wait 7d → Re-check            │
+│  🟡 M2 — TEMPORAL LABELING SYSTEM                           [█████░░░] 🟡│
+│  ├── Phase 6   — 7-Day Labeling Mechanism                    ✅         │
+│  └── Phase 7   — First Cohort: Collect → Wait 7d → Re-check 🟡         │
 │                                                                         │
 │  🧹 M3 — DATA PROCESSING & FEATURE ENGINEERING              [░░░░░░░░] ⏳│
 │  ├── Phase 8   — Data Cleaning Pipeline                                 │
@@ -511,17 +511,32 @@
 ### Phase 7 — First Cohort Lifecycle 🟡
 > commit hedefi: `feat: first cohort labeled`
 
-- [x] **Gün 1 (10 Mart):** cohort_20260310 scrape başlatıldı — 8 kategori × 5 sayfa
-  - Kategoriler: kazak, elbise, mont, etek, gomlek, tshirt, sweatshirt, pantolon
+- [x] ~~**Gün 1 (10 Mart):** cohort_20260310 scrape başlatıldı~~ → başarısız (26 ilan, browser crash)
+- [x] **Parser İyileştirme (11 Mart):** `parsers.py` kapsamlı güncelleme
+  - ✅ Breadcrumb JSON-LD → category, subcategory doğru çekilir (önceki: hep None)
+  - ✅ Brand `<h1>` split → "Koton" (önceki: "Koton - M / 38 Beden")
+  - ✅ Size `<h1>` split → "M / 38 Beden" (önceki: hep yanlış)
+  - ✅ Description `<p>` tag → temiz metin (önceki: seller username dahildi)
+  - ✅ Comment `<span class="comment-count">` → güvenilir (platform limiti: hep 0)
+  - ✅ Photo count dsmcdn dedup → doğru sayım
+  - ✅ Color title+slug arama → bilinen renk sözlüğü
+  - ✅ Seller `profile-block` öncelikli → doğru seller, listing_count
+  - ✅ Price `price-detail` div → güvenilir fiyat
+  - ✅ Condition `<span class="subtitle">` → doğru durum etiketi
+- [x] **Seed seller genişletme:** 8 kategori × 4-6 seller (önceki: 2-6)
+  - Yeni seller'lar: ihtiyacblog(208), emirsahanbekar(211), beyazzayy, meltemkaya888
+- [x] **Gün 1 (11 Mart):** cohort_20260311 scrape başlatıldı — 8 kategori × 5 sayfa
+  - Hedef: ~2000 listing (toplam dataset hedefi)
   - Crash-safe pipeline: her ilan anında diske yazılır
-- [ ] **Gün 2-7 (11-16 Mart):** Bekleme (ilave cohort scrape yapılabilir)
-- [ ] **Gün 8 (17 Mart):** cohort_20260310 re-check → labeling
-  - `python -m src.pipelines.label --cohort-id 20260310 --no-headless`
-- [ ] **Ayrıca:** cohort_20250712 zaten 8 Mart'ta çekilmişti → **15 Mart'ta label'lanabilir**
+  - Güncellenmiş parser ile temiz feature'lar
+- [ ] **Gün 2-7 (12-17 Mart):** Bekleme (7 gün labeling süresi)
+- [ ] **Gün 8 (18 Mart):** cohort_20260311 re-check → labeling
+  - `python -m src.pipelines.label --cohort-id 20260311 --no-headless`
+- [ ] **Ayrıca:** cohort_20250712 (8 Mart) → **15 Mart'ta label'lanabilir**
   - `python -m src.pipelines.label --cohort-id 20250712 --no-headless`
 - [ ] Label dağılımı analizi: sold vs not_sold oranı
 - [ ] Veri kalitesi raporu: eksik alanlar, parse hataları
-- [ ] Hedef: minimum 2 cohort labeled, 1000+ etiketli ilan
+- [ ] Hedef: minimum 2 cohort labeled, 2000+ etiketli ilan
 
 ---
 
@@ -708,9 +723,9 @@
 |-----------|-------|------------------|
 | 🏗️ M0 — Foundation | ✅ Tamamlandı | Phase 0, 0.5, 1 |
 | 🌐 M1 — Data Collection | ✅ Tamamlandı | Phase 2, 3, 4, 5 |
-| 🎤 **EDA Presentation** | 🟡 **AKTİF — PROVA KALDI** | Step 0-8 ✅, Step 9 prova + görev dağılımı |
-| ⏳ M2 — Temporal Labeling | ⏳ Bekliyor | — |
-| 🧹 M3 — Data Processing | ⏳ Bekliyor (Phase 10 → EDA Pres.) | — |
+| 🎙️ **EDA Presentation** | 🟡 **PROVA KALDI** | Step 0-8 ✅, Step 9 prova |
+| ⏳ M2 — Temporal Labeling | 🟡 **Phase 6 ✅, Phase 7 scrape devam** | Phase 6 ✅, Phase 7 🟡 |
+| 🧹 M3 — Data Processing | ⏳ Bekliyor | — |
 | 🤖 M4 — Modeling | ⏳ Bekliyor | — |
 | 📊 M5 — Evaluation | ⏳ Bekliyor | — |
 | 📝 M6 — Reporting | ⏳ Bekliyor | — |
@@ -731,6 +746,8 @@
 | 10 | `3141cdb` | `feat(EDA): initial EDA presentation notebook` | develop |
 | 11 | `fdea696` | `chore: whitelist pilot data files for team sharing` | develop |
 | 12 | `e750147` | `feat(EDA): presentation guidelines compliance` | develop |
+| 13 | `14f32b4` | `feat(EDA): presentation guide + team scripts` | develop |
+| 14 | `0f26358` | `feat: M2 temporal labeling system + crash-safe scrape pipeline` | develop |
 
 ## 🏗️ Altyapı Envanteri
 
@@ -770,13 +787,16 @@ src/scraping/
 ```
 src/pipelines/
 ├── train.py            ← ✅ TAM İMPLEMENTASYON (experiment lifecycle)
-├── scrape.py           ← ✅ TAM İMPLEMENTASYON (Phase 5 — SnapshotWriter + CohortStateTracker entegrasyonlu)
-├── label.py            ← ⏳ İskelet (Phase 6'da implement edilecek)
+├── scrape.py           ← ✅ TAM İMPLEMENTASYON (crash-safe, per-listing write)
+├── label.py            ← ✅ TAM İMPLEMENTASYON (Phase 6 — --auto, --force, --no-headless)
 ├── build_dataset.py    ← ⏳ İskelet (Phase 8-9'da implement edilecek)
 └── evaluate.py         ← ⏳ İskelet (Phase 15-17'de implement edilecek)
 
-src/labeling/           ← ⏳ Boş (Phase 6-7)
-src/preprocessing/      ← ✅ clean_features.py (feature temizleme + proxy label)
+src/labeling/
+├── __init__.py         ← ✅ StatusChecker, CohortLabeler exports
+├── status_checker.py   ← ✅ TAM İMPLEMENTASYON (~310 satır, Selenium-based)
+└── labeler.py          ← ✅ TAM İMPLEMENTASYON (~240 satır, batch orchestrator)
+src/preprocessing/      ← ✅ clean_features.py (multi-cohort + label merge)
 src/features/           ← ⏳ Boş (Phase 9)
 src/dataset/            ← ⏳ Boş (Phase 8)
 src/models/             ← ⏳ Boş (Phase 11-14)
@@ -787,12 +807,21 @@ src/evaluation/         ← ⏳ Boş (Phase 15-17)
 
 ## ⚡ Sonraki Adım
 
-> **🎤 EDA PRESENTATION — Notebook tamamlandı, prova ve görev dağılımı kaldı**
+> **⏳ M2 Phase 7 — Veri toplama + 7 günlük labeling**
 >
-> ✅ Step 0-8 tamamlandı. Notebook 34 cell, tüm hücreler çalıştırıldı (exec 1-20).
+> ✅ Parser kapsamlı iyileştirildi (breadcrumb, brand, size, description, color, photo)
+> ✅ cohort_20260311 scrape başlatıldı (8 kategori × 5 sayfa, hedef ~2000 listing)
+> 🟡 Scrape devam ediyor → **Chrome browser'ı KAPATMA!**
 >
-> 1. **ŞİMDİ:** Takım üyesi görev dağılımı (Step 9)
-> 2. **ŞİMDİ:** 10 dakika prova — zamanlama kontrolü
+> **Zaman çizelgesi:**
+> - 11 Mart: cohort_20260311 scrape tamamlanacak
+> - 15 Mart: cohort_20250712 labeling (7 gün geçmiş)
+> - 18 Mart: cohort_20260311 labeling (7 gün geçmiş)
+>
+> **Scrape tamamlandıktan sonra:**
+> 1. Veri kalitesini kontrol et: `wc -l data/raw_snapshots/cohort_20260311/listings.jsonl`
+> 2. Feature temizleme: `python -m src.preprocessing.clean_features --cohort-id 20260311`
+> 3. Labeling (7 gün sonra): `python -m src.pipelines.label --cohort-id 20260311 --no-headless`
 > 3. **SONRA (M2):** Genişletilmiş scrape (5 ek kategori) + temporal labeling (7 gün re-check)
 >
 > ✅ M0 Foundation + M1 Data Collection tamamlandı.
