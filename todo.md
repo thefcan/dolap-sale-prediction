@@ -1,9 +1,9 @@
 # 📋 Dolap Sale Prediction — Master TODO
 
-> **Son güncelleme:** 2026-03-11 (Parser iyileştirme + 2000 listing scrape başlatıldı)
-> **Branch:** `develop` | **Son commit:** `0f26358`
-> **Durum:** M1 ✅ | EDA ✅ | M2 🟡 **Phase 6 ✅, Phase 7 scrape devam ediyor (cohort_20260311)**
-> **Öncelik:** M2 Phase 7 — 2000 listing toplama + 7 günlük labeling
+> **Son güncelleme:** 2026-03-11 (M3 Phase 8 Data Cleaning Pipeline ✅)
+> **Branch:** `develop` | **Son commit:** `681574c`
+> **Durum:** M1 ✅ | EDA ✅ | M2 🟡 scrape ✅ labeling bekliyor | **M3 Phase 8 ✅**
+> **Öncelik:** M3 Phase 9 — Feature Engineering + 15 Mart labeling
 
 ---
 
@@ -36,11 +36,11 @@
 │  ├── Step 8  — Investigation (Data Quality Bugs)             ✅         │
 │  └── Step 9  — Presentation Polish & Rehearsal               🟡 prova  │
 │                                                                         │
-│  🟡 M2 — TEMPORAL LABELING SYSTEM                           [█████░░░] 🟡│
+│  🟡 M2 — TEMPORAL LABELING SYSTEM                           [██████░░] 🟡│
 │  ├── Phase 6   — 7-Day Labeling Mechanism                    ✅         │
-│  └── Phase 7   — First Cohort: Collect → Wait 7d → Re-check 🟡         │
+│  └── Phase 7   — First Cohort: Collect ✅ → Wait 7d → Re-check ⏳      │
 │                                                                         │
-│  🧹 M3 — DATA PROCESSING & FEATURE ENGINEERING              [░░░░░░░░] ⏳│
+│  🧹 M3 — DATA PROCESSING & FEATURE ENGINEERING              [█░░░░░░░] 🟡│
 │  ├── Phase 8   — Data Cleaning Pipeline                                 │
 │  ├── Phase 9   — Feature Engineering                                    │
 │  └── Phase 10  — EDA Notebook (merged into EDA Presentation)            │
@@ -525,8 +525,19 @@
   - ✅ Condition `<span class="subtitle">` → doğru durum etiketi
 - [x] **Seed seller genişletme:** 8 kategori × 4-6 seller (önceki: 2-6)
   - Yeni seller'lar: ihtiyacblog(208), emirsahanbekar(211), beyazzayy, meltemkaya888
-- [x] **Gün 1 (11 Mart):** cohort_20260311 scrape başlatıldı — 8 kategori × 5 sayfa
-  - Hedef: ~2000 listing (toplam dataset hedefi)
+- [x] **Gün 1 (11 Mart):** cohort_20260311 scrape ✅ — **2151 listing**, 8 kategori × 5 sayfa
+  - Süre: 14029s (~3.9 saat), 548 duplikat atlandı
+  - Kategori dağılımı: kazak(416), elbise(380), tshirt(298), mont(296), gomlek(270), pantolon(208), etek(195), sweatshirt(88)
+  - **Veri Kalitesi Raporu:**
+    - %100 doluluk: listing_id, url, brand, title, price, condition, like_count, comment_count, photo_count, seller_username, category, subcategory
+    - description_text: %100 (önceki cohort'ta %24'tü — parser fix çalıştı ✅)
+    - color: %92.4, size: %85.5, seller_listing_count: %97.2
+    - Top markalar: Diğer(742), Zara(119), Koton(109), LC Waikiki(100), Bershka(84)
+    - Fiyat: 30-91111 TL, medyan 249 TL, ortalama 727 TL
+    - Beğeni: 0-125, ortalama 6.9 | Fotoğraf: 1-8, ortalama 4.7
+    - Durum: Az Kullanılmış(1306), Yeni(446), Yeni ve Etiketli(399)
+    - has_discount: %0 (Dolap indirimli fiyat gösterimi nadir)
+    - is_sold: %0 (beklenen — taze scrape, labeling 7 gün sonra)
   - Crash-safe pipeline: her ilan anında diske yazılır
   - Güncellenmiş parser ile temiz feature'lar
 - [ ] **Gün 2-7 (12-17 Mart):** Bekleme (7 gün labeling süresi)
@@ -542,20 +553,35 @@
 
 ## 🧹 M3 — DATA PROCESSING & FEATURE ENGINEERING
 
-### Phase 8 — Data Cleaning Pipeline
+### Phase 8 — Data Cleaning Pipeline ✅
 > commit hedefi: `feat: data cleaning pipeline`
 
-- [ ] `src/preprocessing/cleaner.py`
-  - Duplicate detection & removal (aynı `listing_id`)
-  - Missing value analizi + imputation stratejisi
-  - Outlier detection (fiyat, description_length)
-  - Data type validation (price → float, date → datetime)
-  - Tutarsız kayıtları logla ve filtrele
-- [ ] `src/dataset/merger.py`
-  - Raw snapshots + labels → merged interim file
-  - Cohort-bazlı merge: `data/interim/merged_{cohort_id}.parquet`
-  - Tüm cohort'ları birleştir: `data/interim/merged_all.parquet`
-- [ ] `src/pipelines/build_dataset.py` implementasyonu — cleaning step
+- [x] `src/preprocessing/cleaner.py` — DataCleaner sınıfı (~270 satır)
+  - Schema normalisation (tüm beklenen sütunların varlığını garanti)
+  - Duplicate detection & removal (aynı `listing_id`, keep first)
+  - Brand/size split (eski parser: "Zara - S / 36" → clean brand + size)
+  - Condition normalisation + ordinal encoding (4→3 unique)
+  - Category repair (None → category_scraped)
+  - Description placeholder detection
+  - Missing value imputation (color/size→"Bilinmiyor", counts→0)
+  - Outlier flagging (is_price_outlier, is_like_outlier — P99)
+  - Dtype enforcement (str/float/int/bool/datetime)
+- [x] `src/dataset/merger.py` — DatasetMerger sınıfı (~270 satır)
+  - discover_cohorts() — raw_snapshots dizinini tara
+  - load_raw() / load_labels() — JSONL yükle
+  - merge_cohort() — tek cohort: raw + labels merge → parquet
+  - merge_all() — tüm cohortları birleştir + cross-cohort dedup
+  - FutureWarning-free concat (all-NA sütun pre-fill)
+- [x] `src/pipelines/build_dataset.py` — End-to-end pipeline (iskelet → TAM)
+  - `--all` / `--cohort-ids` / `--skip-merge` flags
+  - Merge → Clean → Save (parquet + CSV)
+  - Detaylı summary log
+- [x] Pipeline test: 2 cohort (20250712 + 20260311) → 2221 satır, 37 sütun, 0 uyarı
+  - Cross-cohort dedup: 341 duplicate atlandı
+  - 67 size recovered from legacy brand field
+  - 56 placeholder description tespit edildi
+  - 23 price outlier + 23 like outlier flaglendi
+  - Output: `data/interim/cleaned_all.parquet` (285KB)
 
 ### Phase 9 — Feature Engineering
 > commit hedefi: `feat: feature engineering pipeline`
@@ -724,8 +750,8 @@
 | 🏗️ M0 — Foundation | ✅ Tamamlandı | Phase 0, 0.5, 1 |
 | 🌐 M1 — Data Collection | ✅ Tamamlandı | Phase 2, 3, 4, 5 |
 | 🎙️ **EDA Presentation** | 🟡 **PROVA KALDI** | Step 0-8 ✅, Step 9 prova |
-| ⏳ M2 — Temporal Labeling | 🟡 **Phase 6 ✅, Phase 7 scrape devam** | Phase 6 ✅, Phase 7 🟡 |
-| 🧹 M3 — Data Processing | ⏳ Bekliyor | — |
+| ⏳ M2 — Temporal Labeling | 🟡 **Phase 6 ✅, Phase 7 scrape ✅ → labeling bekliyor** | Phase 6 ✅, Phase 7 🟡 |
+| 🧹 M3 — Data Processing | 🟡 **Phase 8 ✅, Phase 9 sırada** | Phase 8 ✅ |
 | 🤖 M4 — Modeling | ⏳ Bekliyor | — |
 | 📊 M5 — Evaluation | ⏳ Bekliyor | — |
 | 📝 M6 — Reporting | ⏳ Bekliyor | — |
@@ -748,6 +774,7 @@
 | 12 | `e750147` | `feat(EDA): presentation guidelines compliance` | develop |
 | 13 | `14f32b4` | `feat(EDA): presentation guide + team scripts` | develop |
 | 14 | `0f26358` | `feat: M2 temporal labeling system + crash-safe scrape pipeline` | develop |
+| 15 | `681574c` | `feat: comprehensive parser improvements + seed seller expansion` | develop |
 
 ## 🏗️ Altyapı Envanteri
 
@@ -789,16 +816,16 @@ src/pipelines/
 ├── train.py            ← ✅ TAM İMPLEMENTASYON (experiment lifecycle)
 ├── scrape.py           ← ✅ TAM İMPLEMENTASYON (crash-safe, per-listing write)
 ├── label.py            ← ✅ TAM İMPLEMENTASYON (Phase 6 — --auto, --force, --no-headless)
-├── build_dataset.py    ← ⏳ İskelet (Phase 8-9'da implement edilecek)
+├── build_dataset.py    ← ✅ TAM İMPLEMENTASYON (merge + clean + save)
 └── evaluate.py         ← ⏳ İskelet (Phase 15-17'de implement edilecek)
 
 src/labeling/
 ├── __init__.py         ← ✅ StatusChecker, CohortLabeler exports
 ├── status_checker.py   ← ✅ TAM İMPLEMENTASYON (~310 satır, Selenium-based)
 └── labeler.py          ← ✅ TAM İMPLEMENTASYON (~240 satır, batch orchestrator)
-src/preprocessing/      ← ✅ clean_features.py (multi-cohort + label merge)
+src/preprocessing/      ← ✅ clean_features.py (EDA) + cleaner.py (DataCleaner)
 src/features/           ← ⏳ Boş (Phase 9)
-src/dataset/            ← ⏳ Boş (Phase 8)
+src/dataset/            ← ✅ merger.py (DatasetMerger)
 src/models/             ← ⏳ Boş (Phase 11-14)
 src/evaluation/         ← ⏳ Boş (Phase 15-17)
 ```
@@ -807,22 +834,21 @@ src/evaluation/         ← ⏳ Boş (Phase 15-17)
 
 ## ⚡ Sonraki Adım
 
-> **⏳ M2 Phase 7 — Veri toplama + 7 günlük labeling**
+> **🟡 M3 Phase 9 — Feature Engineering + Labeling Bekle**
 >
-> ✅ Parser kapsamlı iyileştirildi (breadcrumb, brand, size, description, color, photo)
-> ✅ cohort_20260311 scrape başlatıldı (8 kategori × 5 sayfa, hedef ~2000 listing)
-> 🟡 Scrape devam ediyor → **Chrome browser'ı KAPATMA!**
+> ✅ cohort_20260311 scrape tamamlandı: **2151 listing**, 8 kategori, ~3.9 saat
+> ✅ M3 Phase 8 tamamlandı: cleaner.py + merger.py + build_dataset.py
+> ✅ Cleaned dataset: 2221 satır, 37 sütun (cleaned_all.parquet)
 >
 > **Zaman çizelgesi:**
-> - 11 Mart: cohort_20260311 scrape tamamlanacak
-> - 15 Mart: cohort_20250712 labeling (7 gün geçmiş)
-> - 18 Mart: cohort_20260311 labeling (7 gün geçmiş)
+> - 11 Mart: ✅ Scrape + ✅ Cleaning pipeline
+> - 11-14 Mart: M3 Phase 9 — Feature Engineering (engineer.py)
+> - 15 Mart: cohort_20250712 labeling (7 gün dolmuş)
+> - 18 Mart: cohort_20260311 labeling (7 gün dolmuş)
 >
-> **Scrape tamamlandıktan sonra:**
-> 1. Veri kalitesini kontrol et: `wc -l data/raw_snapshots/cohort_20260311/listings.jsonl`
-> 2. Feature temizleme: `python -m src.preprocessing.clean_features --cohort-id 20260311`
-> 3. Labeling (7 gün sonra): `python -m src.pipelines.label --cohort-id 20260311 --no-headless`
-> 3. **SONRA (M2):** Genişletilmiş scrape (5 ek kategori) + temporal labeling (7 gün re-check)
+> **Şu an yapılacak (M3 Phase 9):**
+> 1. `src/features/engineer.py` — brand_tier, price_ratio, keyword features, encoding
+> 2. Feature engineering → `data/processed/dataset.parquet` output
 >
-> ✅ M0 Foundation + M1 Data Collection tamamlandı.
-> 📊 Pilot veri: 411 ilan | 3 kategori | 12 satıcı | proxy_sold %26.5 positive
+> ✅ M0 Foundation + M1 Data Collection + M3 Phase 8 tamamlandı.
+> 📊 Veri: cohort_20250712 (411 ilan) + cohort_20260311 (2151 ilan) = **2221 unique ilan**
