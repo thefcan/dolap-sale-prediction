@@ -1,9 +1,9 @@
 # 📋 Dolap Sale Prediction — Master TODO
 
-> **Son güncelleme:** 2026-03-11 (M3 Phase 8 Data Cleaning Pipeline ✅)
-> **Branch:** `develop` | **Son commit:** `681574c`
-> **Durum:** M1 ✅ | EDA ✅ | M2 🟡 scrape ✅ labeling bekliyor | **M3 Phase 8 ✅**
-> **Öncelik:** M3 Phase 9 — Feature Engineering + 15 Mart labeling
+> **Son güncelleme:** 2026-03-19 (M3 Phase 9 Kickoff ✅)
+> **Branch:** `develop` | **Son commit:** `c0429c4`
+> **Durum:** M1 ✅ | EDA ✅ | M2 🟡 scrape ✅ labeling bekliyor | **M3 Phase 8 ✅ + Phase 9 kickoff ✅**
+> **Öncelik:** Phase 9.1 Root Cause Plan (RC1-4) + resmi relabeling
 
 ---
 
@@ -1173,7 +1173,7 @@ Sources for sold_within_7_days:
 | 🌐 M1 — Data Collection | ✅ Tamamlandı | Phase 2, 3, 4, 5 |
 | 🎙️ **EDA Presentation** | 🟡 **PROVA KALDI** | Step 0-8 ✅, Step 9 prova |
 | ⏳ M2 — Temporal Labeling | 🟡 **Phase 6 ✅, Phase 7 scrape ✅ → labeling bekliyor** | Phase 6 ✅, Phase 7 🟡 |
-| 🧹 M3 — Data Processing | 🟡 **Phase 8 ✅, Phase 9 sırada** | Phase 8 ✅ |
+| 🧹 M3 — Data Processing | 🟡 **Phase 8 ✅, Phase 9 kickoff ✅, Phase 9.1 devam ediyor** | Phase 8 ✅, Phase 9 🟡 |
 | 🤖 M4 — Modeling | ⏳ Bekliyor | — |
 | 📊 M5 — Evaluation | ⏳ Bekliyor | — |
 | 📝 M6 — Reporting | ⏳ Bekliyor | — |
@@ -1197,6 +1197,7 @@ Sources for sold_within_7_days:
 | 13 | `14f32b4` | `feat(EDA): presentation guide + team scripts` | develop |
 | 14 | `0f26358` | `feat: M2 temporal labeling system + crash-safe scrape pipeline` | develop |
 | 15 | `681574c` | `feat: comprehensive parser improvements + seed seller expansion` | develop |
+| 16 | `c0429c4` | `feat(phase9): kickoff feature engineering pipeline and todo updates` | develop |
 
 ## 🏗️ Altyapı Envanteri
 
@@ -1246,7 +1247,7 @@ src/labeling/
 ├── status_checker.py   ← ✅ TAM İMPLEMENTASYON (~310 satır, Selenium-based)
 └── labeler.py          ← ✅ TAM İMPLEMENTASYON (~240 satır, batch orchestrator)
 src/preprocessing/      ← ✅ clean_features.py (EDA) + cleaner.py (DataCleaner)
-src/features/           ← ⏳ Boş (Phase 9)
+src/features/           ← 🟡 engineer.py eklendi (Phase 9 kickoff tamamlandı)
 src/dataset/            ← ✅ merger.py (DatasetMerger)
 src/models/             ← ⏳ Boş (Phase 11-14)
 src/evaluation/         ← ⏳ Boş (Phase 15-17)
@@ -1256,21 +1257,23 @@ src/evaluation/         ← ⏳ Boş (Phase 15-17)
 
 ## ⚡ Sonraki Adım
 
-> **🟡 M3 Phase 9 — Feature Engineering + Labeling Bekle**
+> **🟡 M3 Phase 9.1 — Root Cause Fix + Resmi Relabeling**
 >
 > ✅ cohort_20260311 scrape tamamlandı: **2151 listing**, 8 kategori, ~3.9 saat
 > ✅ M3 Phase 8 tamamlandı: cleaner.py + merger.py + build_dataset.py
 > ✅ Cleaned dataset: 2221 satır, 37 sütun (cleaned_all.parquet)
+> ✅ Phase 9 kickoff tamamlandı: `src/features/engineer.py` + engineered output üretildi
 >
 > **Zaman çizelgesi:**
 > - 11 Mart: ✅ Scrape + ✅ Cleaning pipeline
-> - 11-14 Mart: M3 Phase 9 — Feature Engineering (engineer.py)
-> - 15 Mart: cohort_20250712 labeling (7 gün dolmuş)
-> - 18 Mart: cohort_20260311 labeling (7 gün dolmuş)
+> - 19 Mart: ✅ Phase 9 kickoff (engineer.py + metadata + todo sync)
+> - 19-20 Mart: RC1 (7-day guard + early-label exclude)
+> - 20 Mart+: RC2/RC3 + resmi relabeling + dataset rebuild
 >
-> **Şu an yapılacak (M3 Phase 9):**
-> 1. `src/features/engineer.py` — brand_tier, price_ratio, keyword features, encoding
-> 2. Feature engineering → `data/processed/dataset.parquet` output
+> **Şu an yapılacak (M3 Phase 9.1):**
+> 1. `src/pipelines/label.py` içine 7-gün guard + `--force-early-label` kontrolü ekle
+> 2. `src/labeling/status_checker.py` active fallback mantığını sıkılaştır
+> 3. Resmi relabeling sonrası `build_dataset.py` ile `merged_data.csv` yeniden üret
 >
 > ✅ M0 Foundation + M1 Data Collection + M3 Phase 8 tamamlandı.
-> 📊 Veri: cohort_20250712 (411 ilan) + cohort_20260311 (2151 ilan) = **2221 unique ilan**
+> 📊 Geçici FE çıktısı: `data/processed/engineered_features.parquet` (8167 satır, training için henüz bloke)
