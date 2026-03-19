@@ -8,6 +8,7 @@ status:
 - **active**     — listing is still live (no sold indicator)
 - **removed**    — HTTP 404/410 or "Sayfa bulunamadı" (item removed, not sold)
 - **error**      — navigation / parse failure (transient issue)
+- **unknown**    — ambiguous page (e.g. homepage redirect / weak evidence)
 
 Usage::
 
@@ -64,6 +65,13 @@ _REMOVED_INDICATORS = [
     "Page not found",
     "Bu sayfa mevcut değil",
     "İlan kaldırılmıştır",
+]
+
+_GENERIC_TITLES = [
+    "dolap",
+    "trendyol dolap",
+    "giriş yap",
+    "login",
 ]
 
 
@@ -227,7 +235,11 @@ class StatusChecker:
             pass
 
         # Determine status from page content
-        status = self._classify_page(page_source)
+        status = self._classify_page(
+            page_source=page_source,
+            listing_id=listing_id,
+            page_title=str(result.get("page_title") or ""),
+        )
         result["status"] = status
 
         if status == "sold":
@@ -240,6 +252,9 @@ class StatusChecker:
             # Removed but not sold — exclude from training or treat as not-sold
             result["sold_within_7_days"] = None  # ambiguous
             self._stats["removed"] += 1
+        elif status == "unknown":
+            result["sold_within_7_days"] = None
+            self._stats["error"] += 1
         else:
             self._stats["error"] += 1
 
@@ -352,7 +367,12 @@ class StatusChecker:
             return 503
         return None
 
-    def _classify_page(self, page_source: str) -> str:
+    def _classify_page(
+        self,
+        page_source: str,
+        listing_id: str,
+        page_title: str,
+    ) -> str:
         """Classify a listing page as sold / active / removed / error.
 
         Parameters
@@ -363,10 +383,15 @@ class StatusChecker:
         Returns
         -------
         str
-            One of: ``'sold'``, ``'active'``, ``'removed'``, ``'error'``.
+            One of: ``'sold'``, ``'active'``, ``'removed'``, ``'unknown'``, ``'error'``.
         """
         if not page_source:
             return "error"
+
+        assert self.driver is not None
+
+        current_url = (self.driver.current_url or "").lower()
+        title_lower = page_title.strip().lower()
 
         # Check for 404 / removed
         if any(indicator in page_source for indicator in _REMOVED_INDICATORS):
@@ -376,13 +401,45 @@ class StatusChecker:
         if any(indicator in page_source for indicator in _SOLD_INDICATORS):
             return "sold"
 
-        # Check for price (indicates active listing)
-        if "TL" in page_source and ("Beğeni" in page_source or "Sepete Ekle" in page_source):
+        # Homepage / generic redirect detection should never be marked active.
+        is_homepage_like = current_url.rstrip("/") in {
+            "https://dolap.com",
+            "https://www.dolap.com",
+        }
+        has_generic_title = any(t == title_lower for t in _GENERIC_TITLES)
+        if is_homepage_like or has_generic_title:
+            return "unknown"
+
+        # Strong evidence signals for active classification.
+        has_product_title = False
+        try:
+            has_product_title = len(
+                self.driver.find_elements(
+                    By.CSS_SELECTOR,
+                    "h1, h1.pr-new-br, h1[data-testid='product-title']",
+                )
+            ) > 0
+        except Exception:
+            pass
+
+        has_price_or_cart = (
+            "TL" in page_source
+            and (
+                "Sepete Ekle" in page_source
+                or "Hemen Al" in page_source
+                or "Beğeni" in page_source
+            )
+        )
+
+        has_listing_id_match = bool(listing_id) and (listing_id in current_url)
+
+        active_signals = [has_product_title, has_price_or_cart, has_listing_id_match]
+        if sum(active_signals) >= 2:
             return "active"
 
-        # Fallback: if page has meaningful content, assume active
-        if len(page_source) > 5000 and "dolap.com" in page_source.lower():
-            return "active"
+        # Ambiguous listing-like pages are marked unknown instead of active fallback.
+        if "dolap.com" in current_url and len(page_source) > 2000:
+            return "unknown"
 
         return "error"
 

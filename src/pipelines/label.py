@@ -30,13 +30,79 @@ The pipeline:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+
+import yaml
 
 from src.labeling.labeler import CohortLabeler
 from src.scraping.storage import CohortStateTracker
 from src.utils.logger import get_logger, setup_logging
+
+
+def _parse_iso_datetime(value: str | None) -> datetime | None:
+    """Parse ISO datetime text into UTC-aware datetime."""
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _read_cohort_scrape_end(cohort_id: str, db_path: str) -> datetime | None:
+    """Resolve cohort scrape end timestamp from DB/meta/listings fallback."""
+    # 1) SQLite tracker (preferred)
+    try:
+        tracker = CohortStateTracker(db_path=db_path)
+        row = tracker.get_cohort(cohort_id)
+        tracker.close()
+        scrape_end = _parse_iso_datetime((row or {}).get("scrape_end"))
+        if scrape_end is not None:
+            return scrape_end
+    except Exception:
+        pass
+
+    cohort_dir = Path("data/raw_snapshots") / f"cohort_{cohort_id}"
+
+    # 2) meta.yaml fallback
+    meta_path = cohort_dir / "meta.yaml"
+    if meta_path.exists():
+        try:
+            with open(meta_path, "r", encoding="utf-8") as fh:
+                meta = yaml.safe_load(fh) or {}
+            scrape_end = _parse_iso_datetime(meta.get("scrape_end"))
+            if scrape_end is not None:
+                return scrape_end
+        except Exception:
+            pass
+
+    # 3) listings.jsonl fallback (max scraped_at)
+    listings_path = cohort_dir / "listings.jsonl"
+    if listings_path.exists():
+        max_scraped_at: datetime | None = None
+        with open(listings_path, "r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                scraped_at = _parse_iso_datetime(record.get("scraped_at"))
+                if scraped_at is not None and (
+                    max_scraped_at is None or scraped_at > max_scraped_at
+                ):
+                    max_scraped_at = scraped_at
+        return max_scraped_at
+
+    return None
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -64,6 +130,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--force",
         action="store_true",
         help="Re-label even if labels file already exists",
+    )
+    parser.add_argument(
+        "--force-early-label",
+        action="store_true",
+        help="Allow labeling cohorts younger than 7 days (debug/emergency only)",
     )
     parser.add_argument(
         "--headless",
@@ -125,6 +196,43 @@ def main(argv: list[str] | None = None) -> None:
     if not cohort_ids:
         logger.info("Nothing to label.")
         return
+
+    # RC1 guard: do not label cohorts younger than 7 days unless explicitly forced
+    eligible_cohorts: list[str] = []
+    for cohort_id in cohort_ids:
+        scrape_end = _read_cohort_scrape_end(cohort_id=cohort_id, db_path=args.db_path)
+        if scrape_end is None:
+            logger.warning(
+                "Could not determine cohort scrape_end; allowing labeling",
+                cohort_id=cohort_id,
+            )
+            eligible_cohorts.append(cohort_id)
+            continue
+
+        age_hours = (datetime.now(timezone.utc) - scrape_end).total_seconds() / 3600.0
+        if age_hours < 168 and not args.force_early_label:
+            logger.error(
+                "Early-label guard blocked cohort (<7 days). "
+                "Use --force-early-label to bypass.",
+                cohort_id=cohort_id,
+                age_hours=round(age_hours, 2),
+            )
+            continue
+
+        if age_hours < 168 and args.force_early_label:
+            logger.warning(
+                "Bypassing early-label guard via --force-early-label",
+                cohort_id=cohort_id,
+                age_hours=round(age_hours, 2),
+            )
+
+        eligible_cohorts.append(cohort_id)
+
+    cohort_ids = eligible_cohorts
+
+    if not cohort_ids:
+        logger.error("All requested cohorts were blocked by early-label guard.")
+        sys.exit(1)
 
     # ── Label each cohort ──────────────────────────────────────────────
     for cohort_id in cohort_ids:

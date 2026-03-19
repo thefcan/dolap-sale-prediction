@@ -649,22 +649,6 @@ Sources for sold_within_7_days:
   - [x] Kaç satır NULL/NaN sold_within_7_days değerine sahip?
   - [x] sebep nedir? → Exclude
 
-**📊 Labeling Status Report (merged_data.csv analizi):**
-- [ ] **Cohort 20250712:** 
-  - [ ] Toplam üretim: 411 ilan
-  - [ ] Kaç tanesi labeled (sold_within_7_days != NULL)?
-  - [ ] sold=True: ? | sold=False: ? | Unknown: ?
-- [ ] **Cohort 20260311:**
-  - [ ] Toplam üretim: ?
-  - [ ] Kaç tanesi labeled (labeled_at >= 2026-03-18, yani T+7 geçti)?
-  - [ ] sold=True: ? | sold=False: ? | Unknown: ?
-- [ ] **Cohort 20260308:**
-  - [ ] T+7 tarihi: 2026-03-15 (geçti mi?)
-  - [ ] Henüz labeled mi?
-- [ ] **Action:** 
-  - [ ] Unlabeled cohortları training'den exclude et
-  - [ ] Only use cohorts where labeled_at is available
-
 **✅ Feature Engineering Starts AFTER Target is Verified**
 
 ---
@@ -713,13 +697,13 @@ Sources for sold_within_7_days:
 > Not: Bu bölüm tamamlanmadan EDA sunumunda yeni sonuç paylaşılmayacak.
 
 **Root Cause 1 — 7 gün dolmadan label atılması (kritik veri hatası)**
-- [ ] `labeled_at - scraped_at` için **hard rule** tanımla:
-  - [ ] `< 168 saat` olan kayıtları `invalid_early_label=True` olarak flagle
-  - [ ] Bu kayıtları training set'ten çıkar (`exclude_from_training=True`)
-  - [ ] 168-192 saat aralığını valid kabul et (7-8 gün tolerance)
-- [ ] `src/pipelines/label.py` içine guard ekle:
-  - [ ] Cohort yaşı 7 günden küçükse labeling job'u fail etsin
-  - [ ] `--force-early-label` olmadan erken labeling'e izin verme
+- [x] `labeled_at - scraped_at` için **hard rule** tanımla:
+  - [x] `< 168 saat` olan kayıtları `invalid_early_label=True` olarak flagle
+  - [x] Bu kayıtları training set'ten çıkar (`exclude_from_training=True`)
+  - [x] 168-192 saat aralığını valid kabul et (7-8 gün tolerance)
+- [x] `src/pipelines/label.py` içine guard ekle:
+  - [x] Cohort yaşı 7 günden küçükse labeling job'u fail etsin
+  - [x] `--force-early-label` olmadan erken labeling'e izin verme
 - [ ] QC raporu üret:
   - [ ] valid_window_count
   - [ ] early_window_count
@@ -730,13 +714,13 @@ Sources for sold_within_7_days:
 - [ ] Label pipeline logunda erken cohort engellendi bilgisi görünüyor
 
 **Root Cause 2 — Active fallback nedeniyle belirsiz sayfaların active'a kayması**
-- [ ] `src/labeling/status_checker.py` sınıflandırma mantığını sıkılaştır:
-  - [ ] Homepage/redirect title tespiti ekle → `status='error'` veya `status='unknown'`
-  - [ ] Active kararı için en az 2 güçlü kanıt zorunlu olsun:
-    - [ ] ürün başlığı selector
-    - [ ] fiyat/sepete ekle bileşeni
-    - [ ] listing id'nin URL ile uyuşması
-  - [ ] Tek başına `len(page_source)>5000` kuralı active için yeterli olmasın
+- [x] `src/labeling/status_checker.py` sınıflandırma mantığını sıkılaştır:
+  - [x] Homepage/redirect title tespiti ekle → `status='error'` veya `status='unknown'`
+  - [x] Active kararı için en az 2 güçlü kanıt zorunlu olsun:
+    - [x] ürün başlığı selector
+    - [x] fiyat/sepete ekle bileşeni
+    - [x] listing id'nin URL ile uyuşması
+  - [x] Tek başına `len(page_source)>5000` kuralı active için yeterli olmasın
 - [ ] 100 örnek manuel audit:
   - [ ] sold=50, active=50 rastgele örnek
   - [ ] yanlış sınıflananları `label_audit.csv` ile kaydet
@@ -1271,9 +1255,9 @@ src/evaluation/         ← ⏳ Boş (Phase 15-17)
 > - 20 Mart+: RC2/RC3 + resmi relabeling + dataset rebuild
 >
 > **Şu an yapılacak (M3 Phase 9.1):**
-> 1. `src/pipelines/label.py` içine 7-gün guard + `--force-early-label` kontrolü ekle
-> 2. `src/labeling/status_checker.py` active fallback mantığını sıkılaştır
-> 3. Resmi relabeling sonrası `build_dataset.py` ile `merged_data.csv` yeniden üret
+> 1. ✅ `src/pipelines/label.py` içine 7-gün guard + `--force-early-label` kontrolü eklendi
+> 2. ✅ `src/labeling/status_checker.py` active fallback mantığı sıkılaştırıldı
+> 3. Resmi relabeling (`cohort_20260311`) + `build_dataset.py` ile `merged_data.csv` yeniden üret
 >
 > ✅ M0 Foundation + M1 Data Collection + M3 Phase 8 tamamlandı.
 > 📊 Geçici FE çıktısı: `data/processed/engineered_features.parquet` (8167 satır, training için henüz bloke)
