@@ -54,24 +54,32 @@ scraping:
         - markalidolap4444
         - roomvintage
         - ucuzvemarkadolap
+        - ihtiyacblog
+        - emirsahanbekar
     - slug: "mont"
       name: "Mont"
       seed_sellers:
         - bazeen
         - unutmadolap
         - conbez
+        - beyazzayy
+        - meltemkaya888
     - slug: "etek"
       name: "Etek"
       seed_sellers:
         - fevnurcakmak
         - sltnisra
         - bett554
+        - markalidolap4444
+        - roomvintage
     - slug: "gomlek"
       name: "Gömlek"
       seed_sellers:
         - selenhazal
         - sengel4545
         - maximav35
+        - ihtiyacblog
+        - emirsahanbekar
     - slug: "tshirt"
       name: "T-Shirt"
       seed_sellers:
@@ -85,6 +93,9 @@ scraping:
       seed_sellers:
         - dolap456022549
         - denizworld
+        - efnanindolabiii
+        - karyatug
+        - beyazzayy
     - slug: "pantolon"
       name: "Pantolon"
       seed_sellers:
@@ -92,6 +103,7 @@ scraping:
         - yarensmsek
         - nslhndzgn
         - ezgimckl
+        - emirsahanbekar
 
   # Storage
   output_format: "jsonl"         # jsonl | csv

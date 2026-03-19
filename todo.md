@@ -1,9 +1,9 @@
 # 📋 Dolap Sale Prediction — Master TODO
 
-> **Son güncelleme:** 2026-03-08 (EDA notebook tamamlandı)
-> **Branch:** `develop` | **Son commit:** `e750147`
-> **Durum:** M1 ✅ | EDA Notebook ✅ | 🎤 **Prova + görev dağılımı kaldı**
-> **Öncelik:** Step 9 — Presentation Polish & Rehearsal (10 dk prova, takım üyesi dağılımı)
+> **Son güncelleme:** 2026-03-19 (M3 Phase 9 Kickoff ✅)
+> **Branch:** `develop` | **Son commit:** `c0429c4`
+> **Durum:** M1 ✅ | EDA ✅ | M2 🟡 scrape ✅ labeling bekliyor | **M3 Phase 8 ✅ + Phase 9 kickoff ✅**
+> **Öncelik:** Phase 9.1 Root Cause Plan (RC1-4) + resmi relabeling
 
 ---
 
@@ -36,11 +36,11 @@
 │  ├── Step 8  — Investigation (Data Quality Bugs)             ✅         │
 │  └── Step 9  — Presentation Polish & Rehearsal               🟡 prova  │
 │                                                                         │
-│  ⏳ M2 — TEMPORAL LABELING SYSTEM                           [░░░░░░░░] ⏳│
-│  ├── Phase 6   — 7-Day Labeling Mechanism                               │
-│  └── Phase 7   — First Cohort: Collect → Wait 7d → Re-check            │
+│  🟡 M2 — TEMPORAL LABELING SYSTEM                           [██████░░] 🟡│
+│  ├── Phase 6   — 7-Day Labeling Mechanism                    ✅         │
+│  └── Phase 7   — First Cohort: Collect ✅ → Wait 7d → Re-check ⏳      │
 │                                                                         │
-│  🧹 M3 — DATA PROCESSING & FEATURE ENGINEERING              [░░░░░░░░] ⏳│
+│  🧹 M3 — DATA PROCESSING & FEATURE ENGINEERING              [█░░░░░░░] 🟡│
 │  ├── Phase 8   — Data Cleaning Pipeline                                 │
 │  ├── Phase 9   — Feature Engineering                                    │
 │  └── Phase 10  — EDA Notebook (merged into EDA Presentation)            │
@@ -483,88 +483,543 @@
 > Ground truth doğal olarak Dolap'tan elde ediliyor — ama bu 7 günlük
 > bekleme süresini disiplinli yönetmeyi gerektiriyor.
 
-### Phase 6 — 7-Day Labeling Mechanism
+### Phase 6 — 7-Day Labeling Mechanism ✅
 > commit hedefi: `feat: temporal labeling mechanism`
 
-- [ ] `src/labeling/status_checker.py` — ilan durum kontrol sınıfı
+- [x] `src/labeling/status_checker.py` — ilan durum kontrol sınıfı
   - URL'yi ziyaret et
   - HTTP 404/410 → `removed`
   - "Satıldı" badge → `sold_within_7_days = 1`
   - Hâlâ aktif → `sold_within_7_days = 0`
   - Sayfa parse hatası → `error` (ayrı kaydet)
-- [ ] `src/labeling/labeler.py` — batch labeling orchestrator
+- [x] `src/labeling/labeler.py` — batch labeling orchestrator
   - Bir cohort'taki tüm ilanları sırayla kontrol et
   - Anti-ban kurallarına uy (Phase 4'ten miras)
-- [ ] Label output: `data/labels/cohort_{YYYYMMDD}.jsonl`
+- [x] Label output: `data/labels/cohort_{YYYYMMDD}.jsonl`
   - Her satır: `{listing_id, url, status, sold_within_7_days, checked_at}`
-- [ ] `src/pipelines/label.py` implementasyonu (skeleton → gerçek)
-- [ ] Edge case'ler:
-  - İlan silindi ama satılmadı → `removed_unsold` (veri setinden çıkar veya ayrı sınıf)
-  - İlan fiyatı değişti → logla (fiyat değişimi feature olabilir)
-  - İlan hâlâ aktif ama 404 → retry logic
-- [ ] Labeling süreci logu: `X satıldı / Y aktif / Z hata`
+- [x] `src/pipelines/label.py` implementasyonu (skeleton → gerçek)
+  - `--auto` flag: 7+ gün geçmiş cohort'ları otomatik tespit
+  - `--force` flag: mevcut label'ları yeniden yaz
+  - `--no-headless` flag: debug modunda görünür browser
+- [x] Edge case'ler:
+  - İlan silindi ama satılmadı → `removed` status (sold_within_7_days = None)
+  - İlan hâlâ aktif ama 404 → retry logic (3 deneme)
+  - Ban tespit → batch abort + partial results saved
+- [x] Labeling süreci logu: summary.yaml ile (sold/active/removed/error sayıları)
+- [x] `clean_features.py` güncellendi: `--merge-labels` flag ile gerçek label desteği
 
-### Phase 7 — First Cohort Lifecycle
+### Phase 7 — First Cohort Lifecycle 🟡
 > commit hedefi: `feat: first cohort labeled`
 
-- [ ] **Gün 1:** Cohort_01 scrape (~1000+ ilan)
-- [ ] **Gün 2-7:** Bekleme (isteğe bağlı: Cohort_02 scrape başlat)
-- [ ] **Gün 8:** Cohort_01 re-check → labeling
+- [x] ~~**Gün 1 (10 Mart):** cohort_20260310 scrape başlatıldı~~ → başarısız (26 ilan, browser crash)
+- [x] **Parser İyileştirme (11 Mart):** `parsers.py` kapsamlı güncelleme
+  - ✅ Breadcrumb JSON-LD → category, subcategory doğru çekilir (önceki: hep None)
+  - ✅ Brand `<h1>` split → "Koton" (önceki: "Koton - M / 38 Beden")
+  - ✅ Size `<h1>` split → "M / 38 Beden" (önceki: hep yanlış)
+  - ✅ Description `<p>` tag → temiz metin (önceki: seller username dahildi)
+  - ✅ Comment `<span class="comment-count">` → güvenilir (platform limiti: hep 0)
+  - ✅ Photo count dsmcdn dedup → doğru sayım
+  - ✅ Color title+slug arama → bilinen renk sözlüğü
+  - ✅ Seller `profile-block` öncelikli → doğru seller, listing_count
+  - ✅ Price `price-detail` div → güvenilir fiyat
+  - ✅ Condition `<span class="subtitle">` → doğru durum etiketi
+- [x] **Seed seller genişletme:** 8 kategori × 4-6 seller (önceki: 2-6)
+  - Yeni seller'lar: ihtiyacblog(208), emirsahanbekar(211), beyazzayy, meltemkaya888
+- [x] **Gün 1 (11 Mart):** cohort_20260311 scrape ✅ — **2151 listing**, 8 kategori × 5 sayfa
+  - Süre: 14029s (~3.9 saat), 548 duplikat atlandı
+  - Kategori dağılımı: kazak(416), elbise(380), tshirt(298), mont(296), gomlek(270), pantolon(208), etek(195), sweatshirt(88)
+  - **Veri Kalitesi Raporu:**
+    - %100 doluluk: listing_id, url, brand, title, price, condition, like_count, comment_count, photo_count, seller_username, category, subcategory
+    - description_text: %100 (önceki cohort'ta %24'tü — parser fix çalıştı ✅)
+    - color: %92.4, size: %85.5, seller_listing_count: %97.2
+    - Top markalar: Diğer(742), Zara(119), Koton(109), LC Waikiki(100), Bershka(84)
+    - Fiyat: 30-91111 TL, medyan 249 TL, ortalama 727 TL
+    - Beğeni: 0-125, ortalama 6.9 | Fotoğraf: 1-8, ortalama 4.7
+    - Durum: Az Kullanılmış(1306), Yeni(446), Yeni ve Etiketli(399)
+    - has_discount: %0 (Dolap indirimli fiyat gösterimi nadir)
+    - is_sold: %0 (beklenen — taze scrape, labeling 7 gün sonra)
+  - Crash-safe pipeline: her ilan anında diske yazılır
+  - Güncellenmiş parser ile temiz feature'lar
+- [ ] **Gün 2-7 (12-17 Mart):** Bekleme (7 gün labeling süresi)
+- [ ] **Gün 8 (18 Mart):** cohort_20260311 re-check → labeling
+  - `python -m src.pipelines.label --cohort-id 20260311 --no-headless`
+- [ ] **Ayrıca:** cohort_20250712 (8 Mart) → **15 Mart'ta label'lanabilir**
+  - `python -m src.pipelines.label --cohort-id 20250712 --no-headless`
 - [ ] Label dağılımı analizi: sold vs not_sold oranı
 - [ ] Veri kalitesi raporu: eksik alanlar, parse hataları
-- [ ] **Gün 8+:** Cohort_02, Cohort_03... paralel devam
-- [ ] Hedef: minimum 3 cohort, 3000+ etiketli ilan
+- [ ] Hedef: minimum 2 cohort labeled, 2000+ etiketli ilan
 
 ---
 
 ## 🧹 M3 — DATA PROCESSING & FEATURE ENGINEERING
 
-### Phase 8 — Data Cleaning Pipeline
+### Phase 8 — Data Cleaning Pipeline ✅
 > commit hedefi: `feat: data cleaning pipeline`
 
-- [ ] `src/preprocessing/cleaner.py`
-  - Duplicate detection & removal (aynı `listing_id`)
-  - Missing value analizi + imputation stratejisi
-  - Outlier detection (fiyat, description_length)
-  - Data type validation (price → float, date → datetime)
-  - Tutarsız kayıtları logla ve filtrele
-- [ ] `src/dataset/merger.py`
-  - Raw snapshots + labels → merged interim file
-  - Cohort-bazlı merge: `data/interim/merged_{cohort_id}.parquet`
-  - Tüm cohort'ları birleştir: `data/interim/merged_all.parquet`
-- [ ] `src/pipelines/build_dataset.py` implementasyonu — cleaning step
+- [x] `src/preprocessing/cleaner.py` — DataCleaner sınıfı (~270 satır)
+  - Schema normalisation (tüm beklenen sütunların varlığını garanti)
+  - Duplicate detection & removal (aynı `listing_id`, keep first)
+  - Brand/size split (eski parser: "Zara - S / 36" → clean brand + size)
+  - Condition normalisation + ordinal encoding (4→3 unique)
+  - Category repair (None → category_scraped)
+  - Description placeholder detection
+  - Missing value imputation (color/size→"Bilinmiyor", counts→0)
+  - Outlier flagging (is_price_outlier, is_like_outlier — P99)
+  - Dtype enforcement (str/float/int/bool/datetime)
+- [x] `src/dataset/merger.py` — DatasetMerger sınıfı (~270 satır)
+  - discover_cohorts() — raw_snapshots dizinini tara
+  - load_raw() / load_labels() — JSONL yükle
+  - merge_cohort() — tek cohort: raw + labels merge → parquet
+  - merge_all() — tüm cohortları birleştir + cross-cohort dedup
+  - FutureWarning-free concat (all-NA sütun pre-fill)
+- [x] `src/pipelines/build_dataset.py` — End-to-end pipeline (iskelet → TAM)
+  - `--all` / `--cohort-ids` / `--skip-merge` flags
+  - Merge → Clean → Save (parquet + CSV)
+  - Detaylı summary log
+- [x] Pipeline test: 2 cohort (20250712 + 20260311) → 2221 satır, 37 sütun, 0 uyarı
+  - Cross-cohort dedup: 341 duplicate atlandı
+  - 67 size recovered from legacy brand field
+  - 56 placeholder description tespit edildi
+  - 23 price outlier + 23 like outlier flaglendi
+  - Output: `data/interim/cleaned_all.parquet` (285KB)
 
 ### Phase 9 — Feature Engineering
 > commit hedefi: `feat: feature engineering pipeline`
+> 🔴 **ÖNCELİK:** Target Variable Definition → Feature Definition sırası **KESINLIKLE ÖNEMLİ**
 
-- [ ] `src/features/engineer.py` — ana feature engineering sınıfı
-- [ ] **İlan özellikleri:**
-  - `price` (ham)
-  - `price_to_category_median` (fiyat / kategori medyan fiyatı)
-  - `photo_count`
-  - `description_length` (char count)
-  - `description_word_count`
-  - `listing_hour` (0-23)
-  - `is_weekend_listing`
-  - `has_discount`
-  - `shipping_buyer_pays`
-- [ ] **Marka kademesi:**
-  - `brand_tier` (1-5, `configs/features.yaml`'dan)
-  - Bilinmeyen marka → tier 0 veya median tier
-- [ ] **Durum etiketi:**
-  - `condition` ordinal encoding (Yeni & Etiketli=3, Yeni=2, Az Kullanılmış=1, Kullanılmış=0)
-- [ ] **Kategorik encoding:**
-  - `category` → target encoding
-  - `color` → target encoding
-  - `size` → ordinal/target encoding
-- [ ] **Satıcı özellikleri:**
-  - `seller_rating_count`
-  - `seller_sales_count` (mümkünse)
-- [ ] **Metin özellikleri:**
-  - `desc_has_urgency_keyword` (acil, son fiyat, indirim, fırsat, pazarlık)
-- [ ] Oluşturulan feature'ların `configs/features.yaml` ile tutarlılık kontrolü
-- [ ] Final output: `data/processed/dataset.parquet`
-- [ ] Feature listesi metadata'ya kaydet
+**Kickoff Update (19 Mart 2026):**
+- [x] `src/features/engineer.py` v1 eklendi (CLI + FeatureEngineer sınıfı)
+- [x] `data/processed/engineered_features.parquet` üretildi (8167 satır, 35 kolon)
+- [x] `data/processed/features_metadata.json` üretildi
+- [x] Target QC flagleri eklendi: `label_window_hours`, `invalid_early_label`, `invalid_late_label`, `exclude_from_training`
+- [x] RC1-4 tamamlanmadan model training'e geçme (bloklayıcı aktif)
+
+---
+
+#### ⚠️ **PHASE 9.0 — TARGET VARIABLE DEFINITION (İlk Yapılacak)**
+
+**🎯 Target Variable Specification:**
+```
+target = sold_within_7_days (Binary: 0=Not Sold, 1=Sold within 7 days)
+
+Definition: A listing is labeled as "sold" if:
+  1. Listed at scraped_at = T (scrape tarihinde aktif)
+  2. Re-checked at labeled_at = T+7 days (7 gün sonra, ±1 gün tolerance)
+  3. At T+7: is_sold == True OR status == "sold" (Dolap API/site kontrol)
+  
+Sources for sold_within_7_days:
+  ✅ merged_data.csv'de zaten var: sold_within_7_days kolon
+  ✅ Veri kaynakları:
+     - is_sold (True/False) → Dolap listing endpoint'inden
+     - status (active/sold/deleted/expired) → Dolap site HTML'sinden
+     - labeled_at (datetime) → Re-check timestamp
+     - scraped_at (datetime) → Original scrape timestamp
+```
+
+**🚨 Data Quality Checks (MUTLAKA YAPILMALI):**
+
+1. **Temporal Window Validation:**
+   - [x] `labeled_at - scraped_at` dağılımını kontrol et
+   - [x] Ideal: ~7 days (604,800 sn)
+   - [x] Tolerance: 6-8 days (müsaade edilen sapma)
+  - [x] Anomali:
+     - [x] `labeled_at < scraped_at` → Data entry error (EXCLUDE)
+     - [x] `labeled_at - scraped_at > 15 days` → Çok geç re-check (accuracy düşüyor, flag)
+     - [x] `labeled_at - scraped_at < 3 days` → Çok erken re-check (EXCLUDE)
+
+2. **Label Distribution Check:**
+  - [x] Count: kaç % sold, kaç % not_sold
+   - [ ] Expected: ~20-30% sold (optimal tahmin), ~70-80% not sold
+  - [x] **If highly imbalanced:** `class_weight='balanced'` modellerde kullan
+  - [x] **If < 10% sold:** Undersampling warning — çok az positive example
+
+3. **Deleted/Expired Listings:**
+   - [ ] `status == 'deleted'` → sold_within_7_days ne olmalı?
+     - [ ] Option A: Exclude from dataset (yapı eksik)
+     - [ ] Option B: Treat as "not sold" (platform politikası)
+   - [ ] `status == 'expired'` → same decision
+   - [ ] Current handling: ✅ Belirt todo'ya
+
+4. **Cohort Consistency:**
+   - [ ] Tüm cohortlarda labeled_at var mı?
+   - [ ] cohort_20250712 vs cohort_20260311 → hangileri T+7 kontrolüne hazır?
+   - [ ] Yeni cohortlar (henüz T+7'ye ulaşmamış) → exclude from training
+
+5. **Missing sold_within_7_days:**
+  - [x] Kaç satır NULL/NaN sold_within_7_days değerine sahip?
+  - [x] sebep nedir? → Exclude
+
+**✅ Feature Engineering Starts AFTER Target is Verified**
+
+---
+
+#### 🎯 **TRAINING READINESS REPORT (19 Mart 2026)**
+
+**Current State:** `data/interim/merged_data.csv` (single source CSV)
+
+```
+📊 DATASET OVERVIEW:
+  Total rows: 8167
+  Cohort count in file: 1 (20260311)
+
+🎯 TARGET COVERAGE:
+  Labeled rows (sold_within_7_days non-null): 6016
+  Unlabeled rows: 2151
+
+🎯 TARGET DISTRIBUTION (only labeled subset):
+  False (Not Sold): 5797 (96.36%)
+  True  (Sold):       219 (3.64%)
+
+⏰ LABEL TIMING (only labeled subset):
+  Mean:   6.4363 days
+  Median: 6.4367 days
+  Min:    6.3889 days
+  Max:    6.4815 days
+  < 7 days: 6016 rows  (⚠️ tüm labeled kayıtlar erken)
+```
+
+**🚨 INTERPRETATION (güncel):**
+- File artık tek CSV olsa da label kalitesi henüz hedefe uygun değil.
+- Labeled subset'teki tüm kayıtlar 7 günden kısa pencerede etiketlenmiş görünüyor.
+- Bu nedenle model eğitimine geçmeden önce Phase 9.1 root-cause planı tamamlanmalı.
+
+**Action Items (Blocking):**
+- [x] Target variable definition ✅
+- [x] Label timing validation ✅
+- [x] Class balance analysis ✅
+- [x] Feature engineering can PROCEED (class imbalance is KNOWN and HAS MITIGATION)
+
+---
+
+#### 🚨 **PHASE 9.1 — ROOT CAUSE ACTION PLAN (ÖNCELIK: EN YÜKSEK)**
+
+> Amaç: `sold_within_7_days` etiketini gerçek 7 gün kuralına göre güvenilir hale getirmek.
+> Not: Bu bölüm tamamlanmadan EDA sunumunda yeni sonuç paylaşılmayacak.
+
+**Root Cause 1 — 7 gün dolmadan label atılması (kritik veri hatası)**
+- [x] `labeled_at - scraped_at` için **hard rule** tanımla:
+  - [x] `< 168 saat` olan kayıtları `invalid_early_label=True` olarak flagle
+  - [x] Bu kayıtları training set'ten çıkar (`exclude_from_training=True`)
+  - [x] 168-192 saat aralığını valid kabul et (7-8 gün tolerance)
+- [x] `src/pipelines/label.py` içine guard ekle:
+  - [x] Cohort yaşı 7 günden küçükse labeling job'u fail etsin
+  - [x] `--force-early-label` olmadan erken labeling'e izin verme
+- [ ] QC raporu üret:
+  - [ ] valid_window_count
+  - [ ] early_window_count
+  - [ ] early_window_ratio
+
+**Definition of Done (RC1):**
+- [ ] Dataset'te `<168 saat` label penceresi oranı `%0`
+- [ ] Label pipeline logunda erken cohort engellendi bilgisi görünüyor
+
+**Root Cause 2 — Active fallback nedeniyle belirsiz sayfaların active'a kayması**
+- [x] `src/labeling/status_checker.py` sınıflandırma mantığını sıkılaştır:
+  - [x] Homepage/redirect title tespiti ekle → `status='error'` veya `status='unknown'`
+  - [x] Active kararı için en az 2 güçlü kanıt zorunlu olsun:
+    - [x] ürün başlığı selector
+    - [x] fiyat/sepete ekle bileşeni
+    - [x] listing id'nin URL ile uyuşması
+  - [x] Tek başına `len(page_source)>5000` kuralı active için yeterli olmasın
+- [ ] 100 örnek manuel audit:
+  - [ ] sold=50, active=50 rastgele örnek
+  - [ ] yanlış sınıflananları `label_audit.csv` ile kaydet
+
+**Definition of Done (RC2):**
+- [ ] Homepage title + active eşleşmesi `%0` veya açıkça `unknown`
+- [ ] Manual audit doğruluk oranı `>= %95`
+
+**Root Cause 3 — 20260311 label üretiminin resmi pipeline dışı olması**
+- [ ] Tek kaynak kuralı getir:
+  - [ ] `data/labels/cohort_*.jsonl` dışındaki label kaynakları geçersiz
+  - [ ] `merged_data.csv` üretimi sadece `src/dataset/merger.py` + `build_dataset.py` ile yapılacak
+- [ ] 20260311 için resmi labeling'i yeniden çalıştır:
+  - [ ] `python -m src.pipelines.label --cohort-id 20260311 --force --no-headless`
+  - [ ] `data/labels/cohort_20260311.jsonl` dosyasının varlığını doğrula
+  - [ ] `cohort_20260311_summary.yaml` üretimini zorunlu kıl
+- [ ] SQLite state tutarlılığı:
+  - [ ] `cohorts` tablosunda 20260311 kaydı `status='labeled'`
+  - [ ] `label_date`, `labeled_count` alanları dolu
+
+**Definition of Done (RC3):**
+- [ ] 20260311 label dosyası + summary dosyası + DB state birbirini tutuyor
+- [ ] Repro komutu ile aynı sonuç tekrar üretilebiliyor
+
+**Root Cause 4 — Seller dağılım dengesizliği ve düşük satış oranı**
+- [ ] Seller concentration analizi üret:
+  - [ ] top10 seller payı
+  - [ ] top20 seller payı
+  - [ ] seller başına sold rate dağılımı
+- [ ] Modelleme hazırlığı için mitigasyon:
+  - [ ] Group-aware split (seller leakage azaltımı)
+  - [ ] Seller-frequency feature (log_count)
+  - [ ] Aşırı dominant seller'lar için cap/weight stratejisi
+- [ ] Raporla:
+  - [ ] “Marketplace behavior vs labeling artifact” ayrımı
+  - [ ] category bazında doğal düşük satış olasılığı
+
+**Definition of Done (RC4):**
+- [ ] Seller concentration metriği rapora işlendi
+- [ ] Train/val split seller leakage kontrolünden geçti
+
+---
+
+#### ✅ **EDA PRESENTATION GATE (Veri Doğrulama Sonrası)**
+
+> EDA sunumuna geçiş şartı: önce label güvenilirliği doğrulanacak.
+
+**Gate-0: Data Readiness (zorunlu)**
+- [ ] Tüm kullanılan cohort'larda `label_window_hours >= 168`
+- [ ] `unknown/error` etiket oranı raporlandı
+- [ ] Label kaynağı resmi pipeline çıktısı
+- [ ] Final analiz dataseti yeniden üretildi (`build_dataset.py`)
+
+**Gate-1: EDA Presentation Update Plan**
+- [ ] Notebook target dağılımını yeni verified dataset ile güncelle
+- [ ] "Labeling reliability" slide'ı ekle:
+  - [ ] erken label hatası bulgusu
+  - [ ] active fallback düzeltmesi
+  - [ ] pipeline standardizasyonu
+- [ ] Eski (6.4 gün) metrikleri arşivle, sunumdan kaldır
+- [ ] Yeni confusion-risk notu ekle: removed/unknown handling
+
+**Gate-2: Sunum Akışı (revize)**
+- [ ] Bölüm 1: Problem + 7-day ground truth tanımı
+- [ ] Bölüm 2: Data collection + label QA süreci
+- [ ] Bölüm 3: EDA (yalnızca verified labels)
+- [ ] Bölüm 4: Feature engineering kararları
+- [ ] Bölüm 5: Limitations + next iteration
+
+**Definition of Done (EDA Gate):**
+- [ ] Notebook'taki tüm target grafikleri verified label dataset'ten üretilmiş
+- [ ] Sunumda "proxy/erken label" kalıntısı yok
+- [ ] Takım prova notlarında veri doğrulama adımı anlatılıyor
+
+---
+
+#### 📋 **NEXT STEPS: Feature Engineering Checklist**
+
+**Before touching src/features/engineer.py, ensure:**
+
+1. **Data Validation:**
+   - [ ] Run `scripts/analyze_target_variable.py` on latest merged_data.csv
+   - [ ] Verify: No NULL/NaN in `sold_within_7_days`
+  - [x] Verify: All label windows within 6-8 days
+  - [x] Verify: No negative windows or anomalies
+
+2. **Feature List Documentation:**
+   - [ ] Update `configs/features.yaml` with all features to engineer
+   - [ ] Include: data type, encoding method, reason for inclusion, expected range
+   - [ ] Include: handling rules for missing values
+   - [ ] Include: categorical cardinality for categories/colors/sizes
+
+3. **Feature Engineering Implementation:**
+   - Implement in order of importance:
+     - [x] **Core:** price, photo_count, description_length, condition_ordinal
+     - [x] **Temporal:** listing_hour, is_weekend_listing, days_since_scrape
+     - [ ] **Categorical:** category_target_encoded, color, size
+     - [x] **Seller:** seller_rating_count
+     - [x] **Text:** desc_has_urgency_keyword, has_flaw_mention
+     - [x] **Derived:** price_to_category_median, price_to_brand_median, brand_tier
+   - Note: Do NOT create features without domain knowledge
+
+4. **Feature Validation:**
+   - [ ] Test each feature on a sample of 100 rows manually
+   - [ ] Check for data leakage (e.g., time-future features)
+   - [ ] Ensure no inf/NaN in continuous features
+   - [ ] Verify categorical cardinality is reasonable (< 100 for most)
+
+5. **Output & Testing:**
+  - [x] Save engineered features → `data/processed/engineered_features.parquet`
+  - [x] Create feature metadata JSON (name, type, encoding, missing_handling)
+   - [ ] Run basic sanity checks → `scripts/validate_features.py` (create this)
+   - [ ] Merge features with target → final dataset for modeling
+
+---
+
+- [x] `src/features/engineer.py` — Feature Engineering Pipeline Class
+  - [x] Input: `data/interim/merged_data.csv` (raw data + labels + merged cohorts)
+  - [x] Output: `data/processed/engineered_features.parquet` (numerical features)
+  - [ ] Methods:
+    ```python
+    class FeatureEngineer:
+      def engineer_price_features() → ["price", "price_to_category_median", "price_log", "has_discount"]
+      def engineer_listing_features() → ["photo_count", "desc_length", "desc_word_count", "comment_count", "like_count"]
+      def engineer_temporal_features() → ["listing_hour", "listing_dow", "is_weekend", "days_since_scrape"]
+      def engineer_categorical_features() → ["category_encoded", "condition_ordinal", "color_encoded", "size_encoded"]
+      def engineer_seller_features() → ["seller_rating_count"]
+      def engineer_text_features() → ["desc_has_urgency", "desc_has_flaw", "desc_placeholder"]
+      def engineer_derived_features() → ["price_to_brand_median", "brand_tier", "category_price_percentile"]
+    ```
+
+- [ ] **Feature Details (with implementations):**
+
+  **🟦 Continuous Features:**
+  
+  1. **price** (Raw Pricing)
+     - Source: `price` column
+     - Handling: Outlier check (< 10 TL or > 50000 TL → flag), log-transform for skewness
+     - Type: Float
+     - Expected range: 10-50000 TL
+     - ML note: Likely strong predictor, but check for too-cheap/too-expensive anomalies
+  
+  2. **price_to_category_median** (Category-normalized price)
+     - Formula: price / category_median_price
+     - Interpretation: Below median (<1.0) vs above median (>1.0)
+     - Hypothesis: Cheap listings sell faster → lower ratio → higher sale probability
+     - Type: Float
+     - Expected range: 0.2-5.0
+     - Handling: Clamp at [0.1, 10.0] to avoid extreme ratios
+  
+  3. **photo_count** (Visual Marketing Signal)
+     - Source: `photo_count` column
+     - Interpretation: More photos → more serious seller / better product visibility
+     - Hypothesis: 3+ photos vs 1-2 photos → higher sale probability
+     - Type: Integer
+     - Expected range: 1-30
+     - Note: May have max cap on Dolap platform
+  
+  4. **description_length** (Text Effort Signal)
+     - Source: `description_text` → character count
+     - Interpretation: Longer descriptions → more effort → more trustworthy
+     - Hypothesis: Description length > median → higher sale probability
+     - Type: Integer
+     - Expected range: 0-5000 characters
+     - Handling: Cap at 5000 (extremely long descriptions are rare/anomalies)
+  
+  5. **description_word_count** (Vocabulary Signal)
+     - Source: `description_text` → word count
+     - Interpretation: More words → more detailed / better English proficiency
+     - Type: Integer
+     - Expected range: 0-500 words
+  
+  6. **like_count** (Engagement Signal - USE WITH CAUTION)
+     - Source: `like_count` column
+     - ⚠️ Data Leakage Risk: If likes increase AFTER initial listing, this is a time-series feature
+     - Decision: Do NOT use likes as feature (leakage) OR use only initial likes at scrape time
+     - If using: Ensure only using `like_count @ scraped_at`, not any later counts
+  
+  7. **comment_count** (Social Proof Signal)
+     - Source: `comment_count` column
+     - ⚠️ Same leakage risk as like_count
+     - Decision: Do NOT use comments as feature (leakage risk)
+  
+  8. **seller_rating_count** (Seller Experience Signal)
+     - Source: `seller_rating_count` column
+     - Interpretation: More ratings → more experienced seller → more trustworthy
+     - Hypothesis: Higher rating count → higher sale probability
+     - Type: Float
+     - Expected range: 0-10000
+     - Handling: Log-transform for skewness (ratings follow power-law)
+  
+  9. **price_log** (Non-linear price)
+     - Formula: log1p(price)
+     - Reason: Prices are right-skewed; log captures diminishing utility of extra TL
+     - Type: Float
+     - Expected range: 2.3-10.8 (log(10) to log(50000))
+  
+  10. **brand_tier** (Brand Prestige Proxy)
+      - Source: `brand` → median price per brand → quantile → tier
+      - Tiers: 0-5 (0=unknown, 1=budget, 5=luxury)
+      - Hypothesis: Luxury brands may have different sale dynamics (e.g., more negotiable)
+      - Type: Integer
+      - Expected cardinality: 6 categories
+      - Handling: Unknown brands → tier 0 or median tier (config decision)
+
+  **🟪 Categorical Features:**
+  
+  11. **category** (Product Category)
+      - Source: `category` column
+      - Encoding: Target Encoding (mean `sold_within_7_days` per category)
+      - Type: Float (after target encoding)
+      - Expected cardinality: 10-15 categories
+      - Hypothesis: Some categories have more active buyers (e.g., shoes vs accessories)
+  
+  12. **condition** (Product Condition)
+      - Source: `condition` column
+      - Ordinal Mapping:
+        ```
+        "Yeni & Etiketli" → 3 (New with tag)
+        "Yeni" → 2 (New)
+        "Az Kullanılmış" → 1 (Lightly used)
+        "Kullanılmış" → 0 (Used)
+        ```
+      - Hypothesis: Newer items sell faster
+      - Type: Integer (ordinal)
+      - Expected range: 0-3
+  
+  13. **color** (Product Color)
+      - Source: `color` column
+      - Cardinality: 20-50+ colors
+      - Encoding: Target Encoding (mean `sold_within_7_days` per color) OR frequency-based grouping
+      - Hypothesis: Some colors more popular (e.g., black, white, blue)
+      - Handling: Colors with < 10 examples → "Other" category
+  
+  14. **size** (Product Size)
+      - Source: `size` column
+      - Cardinality: 30-100+ sizes (many combos like "S / 36", "M / 38")
+      - Encoding: Target Encoding OR ordinal (if convertible to numeric)
+      - Hypothesis: Popular sizes (M, L) sell faster than extreme sizes
+      - Handling: Sizes with < 5 examples → "Other" category
+  
+  15. **has_discount** (Pricing Strategy)
+      - Source: `has_discount` column (True if original_price present and > price)
+      - Interpretation: Discount signals urgency/clearance
+      - Hypothesis: Discounted items sell faster (more attractive)
+      - Type: Boolean → {0, 1}
+  
+  16. **shipping_buyer_pays** (Shipping Cost Signal)
+      - Source: `shipping_buyer_pays` column
+      - Interpretation: If buyer pays → higher total cost for buyer → maybe lower sale prob? (untested)
+      - Type: Boolean → {0, 1}
+      - Note: May need interaction with price
+
+  **🟧 Temporal Features:**
+  
+  17. **listing_hour** (Time of Day Listed)
+      - Source: `scraped_at` → extract hour (0-23 in UTC or local timezone)
+      - Hypothesis: Listings posted during work hours (9-17) may get more visibility
+      - Type: Integer 0-23
+      - Encoding: Could create is_peak_hours boolean (9-17) instead of raw hour
+  
+  18. **listing_dow** (Day of Week Listed)
+      - Source: `scraped_at` → extract day of week (0-6 or 0=Monday)
+      - Hypothesis: Weekday vs weekend listings have different dynamics
+      - Type: Integer 0-6
+      - Encoding: Boolean `is_weekend` (Friday-Sunday) OR cyclic encoding (sin/cos)
+  
+  19. **is_weekend_listing** (Weekend Indicator)
+      - Formula: listing_dow in [4, 5, 6] (Friday, Saturday, Sunday)
+      - Type: Boolean → {0, 1}
+
+  **🟩 Text-derived Features:**
+  
+  20. **desc_has_urgency_keyword** (Urgency Signal)
+      - Keywords: "acil", "son", "indirim", "fırsat", "pazarlık", "satılmalı"
+      - Type: Boolean → {0, 1}
+      - Hypothesis: Urgent language → seller motivated to sell → faster
+  
+  21. **desc_has_flaw_mention** (Flaw Honesty Signal)
+      - Keywords: "leke", "yırtık", "bozuk", "kusur", "hafif", "çizik"
+      - Type: Boolean → {0, 1}
+      - Hypothesis: Honest disclosure of flaws → more trustworthy → faster sale
+  
+  22. **desc_is_placeholder** (Effort Signal)
+      - Check: description_text == title (likely auto-generated)
+      - Type: Boolean → {0, 1}
+      - Hypothesis: Placeholder descriptions → less effort → slower sale
+
+- [ ] **Feature Validation & Storage:**
+  - [ ] Create `configs/features.yaml` with all feature definitions (metadata)
+  - [ ] Store engineering code in `src/features/` modules (not monolithic class)
+  - [ ] Generate feature importance baseline (on first few models)
+  - [ ] Save final feature matrix: `data/processed/engineered_features.parquet`
+  - [ ] Create features metadata JSON: name, dtype, encoding, missing_handling, range, importance_score
+
+- [ ] **Potential Data Leakage Checks:**
+  - ⚠️ **like_count / comment_count:** Only use @ scrape time, NOT later counts
+  - ⚠️ **seller_rating_count:** May be post-purchase ratings (if used, must be @ scrape time)
+  - ⚠️ **listing_date derived from other columns:** Ensure not using time-future information
 
 ### Phase 10 — Exploratory Data Analysis (EDA) ➡️ **EDA Presentation'a merge edildi**
 > ℹ️ Bu phase artık ayrı yapılmayacak. Tüm EDA içeriği yukarıdaki
@@ -700,9 +1155,9 @@
 |-----------|-------|------------------|
 | 🏗️ M0 — Foundation | ✅ Tamamlandı | Phase 0, 0.5, 1 |
 | 🌐 M1 — Data Collection | ✅ Tamamlandı | Phase 2, 3, 4, 5 |
-| 🎤 **EDA Presentation** | 🟡 **AKTİF — PROVA KALDI** | Step 0-8 ✅, Step 9 prova + görev dağılımı |
-| ⏳ M2 — Temporal Labeling | ⏳ Bekliyor | — |
-| 🧹 M3 — Data Processing | ⏳ Bekliyor (Phase 10 → EDA Pres.) | — |
+| 🎙️ **EDA Presentation** | 🟡 **PROVA KALDI** | Step 0-8 ✅, Step 9 prova |
+| ⏳ M2 — Temporal Labeling | 🟡 **Phase 6 ✅, Phase 7 scrape ✅ → labeling bekliyor** | Phase 6 ✅, Phase 7 🟡 |
+| 🧹 M3 — Data Processing | 🟡 **Phase 8 ✅, Phase 9 kickoff ✅, Phase 9.1 devam ediyor** | Phase 8 ✅, Phase 9 🟡 |
 | 🤖 M4 — Modeling | ⏳ Bekliyor | — |
 | 📊 M5 — Evaluation | ⏳ Bekliyor | — |
 | 📝 M6 — Reporting | ⏳ Bekliyor | — |
@@ -723,6 +1178,10 @@
 | 10 | `3141cdb` | `feat(EDA): initial EDA presentation notebook` | develop |
 | 11 | `fdea696` | `chore: whitelist pilot data files for team sharing` | develop |
 | 12 | `e750147` | `feat(EDA): presentation guidelines compliance` | develop |
+| 13 | `14f32b4` | `feat(EDA): presentation guide + team scripts` | develop |
+| 14 | `0f26358` | `feat: M2 temporal labeling system + crash-safe scrape pipeline` | develop |
+| 15 | `681574c` | `feat: comprehensive parser improvements + seed seller expansion` | develop |
+| 16 | `c0429c4` | `feat(phase9): kickoff feature engineering pipeline and todo updates` | develop |
 
 ## 🏗️ Altyapı Envanteri
 
@@ -762,15 +1221,18 @@ src/scraping/
 ```
 src/pipelines/
 ├── train.py            ← ✅ TAM İMPLEMENTASYON (experiment lifecycle)
-├── scrape.py           ← ✅ TAM İMPLEMENTASYON (Phase 5 — SnapshotWriter + CohortStateTracker entegrasyonlu)
-├── label.py            ← ⏳ İskelet (Phase 6'da implement edilecek)
-├── build_dataset.py    ← ⏳ İskelet (Phase 8-9'da implement edilecek)
+├── scrape.py           ← ✅ TAM İMPLEMENTASYON (crash-safe, per-listing write)
+├── label.py            ← ✅ TAM İMPLEMENTASYON (Phase 6 — --auto, --force, --no-headless)
+├── build_dataset.py    ← ✅ TAM İMPLEMENTASYON (merge + clean + save)
 └── evaluate.py         ← ⏳ İskelet (Phase 15-17'de implement edilecek)
 
-src/labeling/           ← ⏳ Boş (Phase 6-7)
-src/preprocessing/      ← ✅ clean_features.py (feature temizleme + proxy label)
-src/features/           ← ⏳ Boş (Phase 9)
-src/dataset/            ← ⏳ Boş (Phase 8)
+src/labeling/
+├── __init__.py         ← ✅ StatusChecker, CohortLabeler exports
+├── status_checker.py   ← ✅ TAM İMPLEMENTASYON (~310 satır, Selenium-based)
+└── labeler.py          ← ✅ TAM İMPLEMENTASYON (~240 satır, batch orchestrator)
+src/preprocessing/      ← ✅ clean_features.py (EDA) + cleaner.py (DataCleaner)
+src/features/           ← 🟡 engineer.py eklendi (Phase 9 kickoff tamamlandı)
+src/dataset/            ← ✅ merger.py (DatasetMerger)
 src/models/             ← ⏳ Boş (Phase 11-14)
 src/evaluation/         ← ⏳ Boş (Phase 15-17)
 ```
@@ -779,13 +1241,23 @@ src/evaluation/         ← ⏳ Boş (Phase 15-17)
 
 ## ⚡ Sonraki Adım
 
-> **🎤 EDA PRESENTATION — Notebook tamamlandı, prova ve görev dağılımı kaldı**
+> **🟡 M3 Phase 9.1 — Root Cause Fix + Resmi Relabeling**
 >
-> ✅ Step 0-8 tamamlandı. Notebook 34 cell, tüm hücreler çalıştırıldı (exec 1-20).
+> ✅ cohort_20260311 scrape tamamlandı: **2151 listing**, 8 kategori, ~3.9 saat
+> ✅ M3 Phase 8 tamamlandı: cleaner.py + merger.py + build_dataset.py
+> ✅ Cleaned dataset: 2221 satır, 37 sütun (cleaned_all.parquet)
+> ✅ Phase 9 kickoff tamamlandı: `src/features/engineer.py` + engineered output üretildi
 >
-> 1. **ŞİMDİ:** Takım üyesi görev dağılımı (Step 9)
-> 2. **ŞİMDİ:** 10 dakika prova — zamanlama kontrolü
-> 3. **SONRA (M2):** Genişletilmiş scrape (5 ek kategori) + temporal labeling (7 gün re-check)
+> **Zaman çizelgesi:**
+> - 11 Mart: ✅ Scrape + ✅ Cleaning pipeline
+> - 19 Mart: ✅ Phase 9 kickoff (engineer.py + metadata + todo sync)
+> - 19-20 Mart: RC1 (7-day guard + early-label exclude)
+> - 20 Mart+: RC2/RC3 + resmi relabeling + dataset rebuild
 >
-> ✅ M0 Foundation + M1 Data Collection tamamlandı.
-> 📊 Pilot veri: 411 ilan | 3 kategori | 12 satıcı | proxy_sold %26.5 positive
+> **Şu an yapılacak (M3 Phase 9.1):**
+> 1. ✅ `src/pipelines/label.py` içine 7-gün guard + `--force-early-label` kontrolü eklendi
+> 2. ✅ `src/labeling/status_checker.py` active fallback mantığı sıkılaştırıldı
+> 3. Resmi relabeling (`cohort_20260311`) + `build_dataset.py` ile `merged_data.csv` yeniden üret
+>
+> ✅ M0 Foundation + M1 Data Collection + M3 Phase 8 tamamlandı.
+> 📊 Geçici FE çıktısı: `data/processed/engineered_features.parquet` (8167 satır, training için henüz bloke)

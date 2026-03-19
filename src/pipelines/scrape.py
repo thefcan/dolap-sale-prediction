@@ -149,23 +149,81 @@ def main(argv: list[str] | None = None) -> None:
                 logger.info(f"{'─' * 40}")
                 logger.info(f"Category: {slug}")
 
-                # Scrape without output_path — writing is delegated to SnapshotWriter
-                results = scraper.scrape_category(
-                    category_slug=slug,
-                    max_pages=max_pages,
-                    output_path=None,
-                )
+                # Phase 1: Collect URLs from seller profiles
+                seed_sellers = []
+                for cat_cfg in cfg.get("categories", []):
+                    if cat_cfg.get("slug") == slug:
+                        seed_sellers = cat_cfg.get("seed_sellers", [])
+                        break
 
-                # Stream results through SnapshotWriter (handles dedup + combined JSONL)
-                written = writer.append_batch(slug, results)
-                total_listings += written
+                all_urls: list[str] = []
+                seen_urls: set[str] = set()
+
+                if seed_sellers:
+                    for username in seed_sellers:
+                        profile_urls = scraper.crawl_seller_profile(
+                            username, max_pages=max_pages,
+                        )
+                        for u in profile_urls:
+                            if u not in seen_urls:
+                                seen_urls.add(u)
+                                all_urls.append(u)
+                    logger.info(
+                        "URL collection complete",
+                        category=slug,
+                        total_urls=len(all_urls),
+                        sellers=len(seed_sellers),
+                    )
+                else:
+                    all_urls = scraper.crawl_category(slug, max_pages=max_pages)
+                    logger.info("URLs from category page", total=len(all_urls))
+
+                if not all_urls:
+                    logger.warning("No URLs found, skipping", category=slug)
+                    continue
+
+                # Phase 2: Scrape each listing and write IMMEDIATELY to disk
+                cat_written = 0
+                cat_errors = 0
+
+                for idx, url in enumerate(all_urls, 1):
+                    logger.info(f"[{idx}/{len(all_urls)}] Scraping", url=url[:80])
+
+                    data = scraper.scrape_listing(url)
+
+                    # Write immediately — crash-safe
+                    if data and not data.get("_ban_detected"):
+                        if writer.append(slug, data):
+                            cat_written += 1
+                        else:
+                            pass  # duplicate
+                    else:
+                        cat_errors += 1
+
+                    # Abort on ban
+                    if data.get("_ban_detected"):
+                        logger.error("Ban detected — aborting category", category=slug)
+                        break
+
+                    # Progress every 25 listings
+                    if idx % 25 == 0:
+                        logger.info(
+                            "Progress",
+                            category=slug,
+                            done=idx,
+                            total=len(all_urls),
+                            written=cat_written,
+                            errors=cat_errors,
+                        )
+
+                total_listings += cat_written
 
                 logger.info(
                     "Category complete",
                     category=slug,
-                    scraped=len(results),
-                    written=written,
-                    duplicates=len(results) - written,
+                    urls=len(all_urls),
+                    written=cat_written,
+                    errors=cat_errors,
                 )
     finally:
         scrape_end = datetime.utcnow()

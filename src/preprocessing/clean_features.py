@@ -15,6 +15,7 @@ Fixes:
   9. proxy_sold label (engagement-based)
 """
 
+import argparse
 import json
 import re
 import pathlib
@@ -22,9 +23,11 @@ import numpy as np
 import pandas as pd
 
 # ── Config ────────────────────────────────────────────────────────────────
-RAW_PATH = pathlib.Path("data/raw_snapshots/cohort_20250712/listings.jsonl")
-OUT_PATH = pathlib.Path("data/interim/cohort_20250712_cleaned.parquet")
-OUT_CSV = pathlib.Path("data/interim/cohort_20250712_cleaned.csv")  # for quick inspection
+# Default paths (overridden by CLI args)
+DEFAULT_COHORT_ID = "20250712"
+RAW_DIR = pathlib.Path("data/raw_snapshots")
+LABELS_DIR = pathlib.Path("data/labels")
+OUT_DIR = pathlib.Path("data/interim")
 
 FLAW_KEYWORDS = ["leke", "yırtık", "bozuk", "hafif kusur", "küçük kusur", "sökük", "soluk", "defolu"]
 URGENCY_KEYWORDS = ["acil", "son fiyat", "fırsat", "pazarlık", "bugün", "indirimli"]
@@ -45,14 +48,67 @@ CONDITION_ORDINAL = {
 }
 
 
-def load_raw() -> pd.DataFrame:
+def load_raw(cohort_id: str = DEFAULT_COHORT_ID) -> pd.DataFrame:
     """Load raw JSONL into DataFrame."""
+    raw_path = RAW_DIR / f"cohort_{cohort_id}" / "listings.jsonl"
     records = []
-    with open(RAW_PATH) as f:
+    with open(raw_path) as f:
         for line in f:
             records.append(json.loads(line))
     df = pd.DataFrame(records)
-    print(f"Loaded {len(df)} records from {RAW_PATH}")
+    print(f"Loaded {len(df)} records from {raw_path}")
+    return df
+
+
+def load_and_merge_labels(df: pd.DataFrame, cohort_id: str) -> pd.DataFrame:
+    """Merge real labels from data/labels/ if available.
+
+    If a labels file exists for this cohort, merge `sold_within_7_days`
+    from the labels into the DataFrame. This replaces proxy_sold with
+    ground-truth labels.
+
+    Returns the DataFrame with an added `has_real_label` column.
+    """
+    labels_path = LABELS_DIR / f"cohort_{cohort_id}.jsonl"
+    df["has_real_label"] = False
+    df["sold_within_7_days"] = None
+
+    if not labels_path.exists():
+        print(f"No labels file found at {labels_path} — using proxy labels only")
+        return df
+
+    label_records = []
+    with open(labels_path) as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                label_records.append(json.loads(line))
+
+    labels_df = pd.DataFrame(label_records)
+    if labels_df.empty or "listing_id" not in labels_df.columns:
+        print(f"Labels file empty or missing listing_id — using proxy labels")
+        return df
+
+    # Keep only useful columns from labels
+    label_cols = ["listing_id", "status", "sold_within_7_days"]
+    label_cols = [c for c in label_cols if c in labels_df.columns]
+    labels_df = labels_df[label_cols].copy()
+    labels_df["listing_id"] = labels_df["listing_id"].astype(str)
+
+    # Merge on listing_id
+    df["listing_id"] = df["listing_id"].astype(str)
+    df = df.merge(labels_df, on="listing_id", how="left", suffixes=("", "_label"))
+
+    # Mark which rows have real labels (sold or active, not removed/error)
+    if "status" in df.columns:
+        df["has_real_label"] = df["status"].isin(["sold", "active"])
+        df.loc[df["has_real_label"], "sold_within_7_days"] = (
+            df.loc[df["has_real_label"], "sold_within_7_days"].fillna(0).astype(int)
+        )
+
+    n_labeled = df["has_real_label"].sum()
+    n_sold = (df["sold_within_7_days"] == 1).sum()
+    print(f"Real labels merged: {n_labeled}/{len(df)} labeled, {n_sold} sold")
     return df
 
 
@@ -192,12 +248,34 @@ def add_proxy_label(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def main():
-    print("=" * 60)
-    print("FEATURE CLEANING PIPELINE")
-    print("=" * 60)
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description="Clean features for a Dolap cohort")
+    parser.add_argument(
+        "--cohort-id",
+        type=str,
+        default=DEFAULT_COHORT_ID,
+        help=f"Cohort identifier (default: {DEFAULT_COHORT_ID})",
+    )
+    parser.add_argument(
+        "--merge-labels",
+        action="store_true",
+        help="Merge real labels from data/labels/ if available",
+    )
+    parser.add_argument(
+        "--all-cohorts",
+        action="store_true",
+        help="Process all cohorts found in data/raw_snapshots/",
+    )
+    return parser.parse_args(argv)
 
-    df = load_raw()
+
+def process_cohort(cohort_id: str, merge_labels: bool = False) -> pd.DataFrame:
+    """Run the full cleaning pipeline for a single cohort."""
+    print(f"\n{'=' * 60}")
+    print(f"FEATURE CLEANING PIPELINE — cohort_{cohort_id}")
+    print(f"{'=' * 60}")
+
+    df = load_raw(cohort_id)
 
     # Apply all cleaning steps
     df = clean_brand_size(df)
@@ -209,18 +287,25 @@ def main():
     df = add_price_features(df)
     df = add_proxy_label(df)
 
+    # Merge real labels if available
+    if merge_labels:
+        df = load_and_merge_labels(df, cohort_id)
+
     # Save
-    OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    out_parquet = OUT_DIR / f"cohort_{cohort_id}_cleaned.parquet"
+    out_csv = OUT_DIR / f"cohort_{cohort_id}_cleaned.csv"
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+
     try:
-        df.to_parquet(OUT_PATH, index=False)
-        print(f"\nSAVED: {OUT_PATH}")
+        df.to_parquet(out_parquet, index=False)
+        print(f"\nSAVED: {out_parquet}")
     except ImportError:
         print(f"\n⚠️ pyarrow not installed, skipping parquet. Using CSV only.")
-    df.to_csv(OUT_CSV, index=False)
+    df.to_csv(out_csv, index=False)
 
     print(f"\n{'=' * 60}")
-    print(f"SAVED: {OUT_PATH} ({len(df)} rows, {len(df.columns)} columns)")
-    print(f"SAVED: {OUT_CSV}")
+    print(f"SAVED: {out_parquet} ({len(df)} rows, {len(df.columns)} columns)")
+    print(f"SAVED: {out_csv}")
     print(f"\nNew columns added:")
     new_cols = [
         "brand_clean", "size_extracted", "size_final",
@@ -231,7 +316,12 @@ def main():
         "sale_score", "proxy_sold",
     ]
     for col in new_cols:
-        print(f"  {col:25s}  dtype={df[col].dtype}  non_null={df[col].notna().sum()}")
+        if col in df.columns:
+            print(f"  {col:25s}  dtype={df[col].dtype}  non_null={df[col].notna().sum()}")
+
+    if merge_labels and "sold_within_7_days" in df.columns:
+        n_real = df["has_real_label"].sum() if "has_real_label" in df.columns else 0
+        print(f"\n  {'sold_within_7_days':25s}  real_labels={n_real}")
 
     print(f"\n--- FINAL SUMMARY ---")
     print(f"Total records: {len(df)}")
@@ -239,6 +329,26 @@ def main():
     print(f"proxy_sold distribution: {df['proxy_sold'].value_counts().to_dict()}")
     print(f"brand_tier distribution: {df['brand_tier_name'].value_counts().to_dict()}")
     print(f"condition_clean distribution: {df['condition_clean'].value_counts().to_dict()}")
+
+    return df
+
+
+def main(argv=None):
+    args = parse_args(argv)
+
+    if args.all_cohorts:
+        # Process all cohorts found in raw_snapshots
+        cohort_ids = []
+        for d in sorted(RAW_DIR.iterdir()):
+            if d.is_dir() and d.name.startswith("cohort_"):
+                listings = d / "listings.jsonl"
+                if listings.exists() and listings.stat().st_size > 0:
+                    cohort_ids.append(d.name.replace("cohort_", ""))
+        print(f"Found {len(cohort_ids)} cohorts: {cohort_ids}")
+        for cid in cohort_ids:
+            process_cohort(cid, merge_labels=args.merge_labels)
+    else:
+        process_cohort(args.cohort_id, merge_labels=args.merge_labels)
 
 
 if __name__ == "__main__":
