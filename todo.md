@@ -587,6 +587,13 @@
 > commit hedefi: `feat: feature engineering pipeline`
 > 🔴 **ÖNCELİK:** Target Variable Definition → Feature Definition sırası **KESINLIKLE ÖNEMLİ**
 
+**Kickoff Update (19 Mart 2026):**
+- [x] `src/features/engineer.py` v1 eklendi (CLI + FeatureEngineer sınıfı)
+- [x] `data/processed/engineered_features.parquet` üretildi (8167 satır, 35 kolon)
+- [x] `data/processed/features_metadata.json` üretildi
+- [x] Target QC flagleri eklendi: `label_window_hours`, `invalid_early_label`, `invalid_late_label`, `exclude_from_training`
+- [x] RC1-4 tamamlanmadan model training'e geçme (bloklayıcı aktif)
+
 ---
 
 #### ⚠️ **PHASE 9.0 — TARGET VARIABLE DEFINITION (İlk Yapılacak)**
@@ -612,19 +619,19 @@ Sources for sold_within_7_days:
 **🚨 Data Quality Checks (MUTLAKA YAPILMALI):**
 
 1. **Temporal Window Validation:**
-   - [ ] `labeled_at - scraped_at` dağılımını kontrol et
-   - [ ] Ideal: ~7 days (604,800 sn)
-   - [ ] Tolerance: 6-8 days (müsaade edilen sapma)
-   - [ ] Anomali: 
-     - [ ] `labeled_at < scraped_at` → Data entry error (EXCLUDE)
-     - [ ] `labeled_at - scraped_at > 15 days` → Çok geç re-check (accuracy düşüyor, flag)
-     - [ ] `labeled_at - scraped_at < 3 days` → Çok erken re-check (EXCLUDE)
+   - [x] `labeled_at - scraped_at` dağılımını kontrol et
+   - [x] Ideal: ~7 days (604,800 sn)
+   - [x] Tolerance: 6-8 days (müsaade edilen sapma)
+  - [x] Anomali:
+     - [x] `labeled_at < scraped_at` → Data entry error (EXCLUDE)
+     - [x] `labeled_at - scraped_at > 15 days` → Çok geç re-check (accuracy düşüyor, flag)
+     - [x] `labeled_at - scraped_at < 3 days` → Çok erken re-check (EXCLUDE)
 
 2. **Label Distribution Check:**
-   - [ ] Count: kaç % sold, kaç % not_sold
+  - [x] Count: kaç % sold, kaç % not_sold
    - [ ] Expected: ~20-30% sold (optimal tahmin), ~70-80% not sold
-   - [ ] **If highly imbalanced:** `class_weight='balanced'` modellerde kullan
-   - [ ] **If < 10% sold:** Undersampling warning — çok az positive example
+  - [x] **If highly imbalanced:** `class_weight='balanced'` modellerde kullan
+  - [x] **If < 10% sold:** Undersampling warning — çok az positive example
 
 3. **Deleted/Expired Listings:**
    - [ ] `status == 'deleted'` → sold_within_7_days ne olmalı?
@@ -639,8 +646,8 @@ Sources for sold_within_7_days:
    - [ ] Yeni cohortlar (henüz T+7'ye ulaşmamış) → exclude from training
 
 5. **Missing sold_within_7_days:**
-   - [ ] Kaç satır NULL/NaN sold_within_7_days değerine sahip?
-   - [ ] sebep nedir? → Exclude
+  - [x] Kaç satır NULL/NaN sold_within_7_days değerine sahip?
+  - [x] sebep nedir? → Exclude
 
 **📊 Labeling Status Report (merged_data.csv analizi):**
 - [ ] **Cohort 20250712:** 
@@ -696,7 +703,7 @@ Sources for sold_within_7_days:
 - [x] Target variable definition ✅
 - [x] Label timing validation ✅
 - [x] Class balance analysis ✅
-- [ ] Feature engineering can PROCEED (class imbalance is KNOWN and HAS MITIGATION)
+- [x] Feature engineering can PROCEED (class imbalance is KNOWN and HAS MITIGATION)
 
 ---
 
@@ -813,8 +820,8 @@ Sources for sold_within_7_days:
 1. **Data Validation:**
    - [ ] Run `scripts/analyze_target_variable.py` on latest merged_data.csv
    - [ ] Verify: No NULL/NaN in `sold_within_7_days`
-   - [ ] Verify: All label windows within 6-8 days
-   - [ ] Verify: No negative windows or anomalies
+  - [x] Verify: All label windows within 6-8 days
+  - [x] Verify: No negative windows or anomalies
 
 2. **Feature List Documentation:**
    - [ ] Update `configs/features.yaml` with all features to engineer
@@ -824,12 +831,12 @@ Sources for sold_within_7_days:
 
 3. **Feature Engineering Implementation:**
    - Implement in order of importance:
-     - [ ] **Core:** price, photo_count, description_length, condition_ordinal
-     - [ ] **Temporal:** listing_hour, is_weekend_listing, days_since_scrape
+     - [x] **Core:** price, photo_count, description_length, condition_ordinal
+     - [x] **Temporal:** listing_hour, is_weekend_listing, days_since_scrape
      - [ ] **Categorical:** category_target_encoded, color, size
-     - [ ] **Seller:** seller_rating_count
-     - [ ] **Text:** desc_has_urgency_keyword, has_flaw_mention
-     - [ ] **Derived:** price_to_category_median, price_to_brand_median, brand_tier
+     - [x] **Seller:** seller_rating_count
+     - [x] **Text:** desc_has_urgency_keyword, has_flaw_mention
+     - [x] **Derived:** price_to_category_median, price_to_brand_median, brand_tier
    - Note: Do NOT create features without domain knowledge
 
 4. **Feature Validation:**
@@ -839,16 +846,16 @@ Sources for sold_within_7_days:
    - [ ] Verify categorical cardinality is reasonable (< 100 for most)
 
 5. **Output & Testing:**
-   - [ ] Save engineered features → `data/processed/features.parquet`
-   - [ ] Create feature metadata JSON (name, type, encoding, missing_handling)
+  - [x] Save engineered features → `data/processed/engineered_features.parquet`
+  - [x] Create feature metadata JSON (name, type, encoding, missing_handling)
    - [ ] Run basic sanity checks → `scripts/validate_features.py` (create this)
    - [ ] Merge features with target → final dataset for modeling
 
 ---
 
-- [ ] `src/features/engineer.py` — Feature Engineering Pipeline Class
-  - [ ] Input: `data/interim/merged_data.csv` (raw data + labels + merged cohorts)
-  - [ ] Output: `data/processed/engineered_features.parquet` (numerical features)
+- [x] `src/features/engineer.py` — Feature Engineering Pipeline Class
+  - [x] Input: `data/interim/merged_data.csv` (raw data + labels + merged cohorts)
+  - [x] Output: `data/processed/engineered_features.parquet` (numerical features)
   - [ ] Methods:
     ```python
     class FeatureEngineer:
