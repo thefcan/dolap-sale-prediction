@@ -131,6 +131,7 @@ class DatasetMerger:
         df["has_real_label"] = False
         df["sold_within_7_days"] = -1  # -1 = unlabeled, 0 = not sold, 1 = sold
         df["label_status"] = ""
+        df["label_source"] = "none"
 
         # Merge labels if available
         labels = self.load_labels(cohort_id)
@@ -153,6 +154,8 @@ class DatasetMerger:
             elif "status_from_label" in df.columns:
                 df["label_status"] = df["status_from_label"]
                 df["has_real_label"] = df["status_from_label"].isin(["sold", "active"])
+
+            df.loc[df["has_real_label"], "label_source"] = "official_labels_jsonl"
 
             # Reconcile sold_within_7_days
             if "sold_within_7_days_from_label" in df.columns:
@@ -232,6 +235,8 @@ class DatasetMerger:
                         df[col] = pd.to_numeric(df[col], errors="coerce")
                     else:
                         df[col] = df[col].fillna("")
+            if "label_source" in df.columns:
+                df["label_source"] = df["label_source"].fillna("none").astype(str)
 
         combined = pd.concat(dfs, ignore_index=True)
 

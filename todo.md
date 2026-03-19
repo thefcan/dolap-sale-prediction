@@ -1,8 +1,8 @@
 # 📋 Dolap Sale Prediction — Master TODO
 
-> **Son güncelleme:** 2026-03-19 (M3 Phase 9 Kickoff ✅)
-> **Branch:** `develop` | **Son commit:** `c0429c4`
-> **Durum:** M1 ✅ | EDA ✅ | M2 🟡 scrape ✅ labeling bekliyor | **M3 Phase 8 ✅ + Phase 9 kickoff ✅**
+> **Son güncelleme:** 2026-03-19 (M3 Phase 9.1 RC1 QC ✅, RC3 relabeling ⏳)
+> **Branch:** `develop` | **Son commit:** `0d22d9c`
+> **Durum:** M1 ✅ | EDA ✅ | M2 🟡 scrape ✅ labeling bekliyor | **M3 Phase 8 ✅ + Phase 9.1 (RC1/RC2) ✅, RC3 ⏳**
 > **Öncelik:** Phase 9.1 Root Cause Plan (RC1-4) + resmi relabeling
 
 ---
@@ -659,29 +659,31 @@ Sources for sold_within_7_days:
 
 ```
 📊 DATASET OVERVIEW:
-  Total rows: 8167
-  Cohort count in file: 1 (20260311)
+  Total rows: 6059
+  Cohort count in file: 2 (20250712, 20260311)
 
 🎯 TARGET COVERAGE:
-  Labeled rows (sold_within_7_days non-null): 6016
-  Unlabeled rows: 2151
+  Labeled rows (sold_within_7_days non-null): 18
+  Unlabeled rows: 6041
 
 🎯 TARGET DISTRIBUTION (only labeled subset):
-  False (Not Sold): 5797 (96.36%)
-  True  (Sold):       219 (3.64%)
+  True  (Sold):  17 (94.44%)
+  False (Active): 1 (5.56%)
 
-⏰ LABEL TIMING (only labeled subset):
-  Mean:   6.4363 days
-  Median: 6.4367 days
-  Min:    6.3889 days
-  Max:    6.4815 days
-  < 7 days: 6016 rows  (⚠️ tüm labeled kayıtlar erken)
+🔎 LABEL SOURCE BREAKDOWN:
+  official_labels_jsonl: 18
+  none (unlabeled):      6041
+
+📉 COHORT BREAKDOWN:
+  cohort_20250712: 43 row, 18 labeled
+  cohort_20260311: 6016 row, 0 labeled (⚠️ resmi label eksik)
 ```
 
 **🚨 INTERPRETATION (güncel):**
-- File artık tek CSV olsa da label kalitesi henüz hedefe uygun değil.
-- Labeled subset'teki tüm kayıtlar 7 günden kısa pencerede etiketlenmiş görünüyor.
-- Bu nedenle model eğitimine geçmeden önce Phase 9.1 root-cause planı tamamlanmalı.
+- Canonical `merged_data.csv` artık resmi pipeline ile yeniden üretildi.
+- Ancak dataset training-ready değil: 6059 satırın yalnızca 18'i resmi label içeriyor.
+- En büyük blokaj `cohort_20260311` için resmi label dosyasının olmaması.
+- Bu nedenle model eğitimine geçmeden önce RC3 relabeling adımı zorunlu.
 
 **Action Items (Blocking):**
 - [x] Target variable definition ✅
@@ -705,12 +707,13 @@ Sources for sold_within_7_days:
   - [x] Cohort yaşı 7 günden küçükse labeling job'u fail etsin
   - [x] `--force-early-label` olmadan erken labeling'e izin verme
 - [ ] QC raporu üret:
-  - [ ] valid_window_count
-  - [ ] early_window_count
-  - [ ] early_window_ratio
+  - [x] valid_window_count = 18
+  - [x] early_window_count = 0
+  - [x] early_window_ratio = 0.0
+  - [x] Rapor: `artifacts/metrics/target_variable_report.json`
 
 **Definition of Done (RC1):**
-- [ ] Dataset'te `<168 saat` label penceresi oranı `%0`
+- [x] Dataset'te `<168 saat` label penceresi oranı `%0`
 - [ ] Label pipeline logunda erken cohort engellendi bilgisi görünüyor
 
 **Root Cause 2 — Active fallback nedeniyle belirsiz sayfaların active'a kayması**
@@ -730,12 +733,12 @@ Sources for sold_within_7_days:
 - [ ] Manual audit doğruluk oranı `>= %95`
 
 **Root Cause 3 — 20260311 label üretiminin resmi pipeline dışı olması**
-- [ ] Tek kaynak kuralı getir:
-  - [ ] `data/labels/cohort_*.jsonl` dışındaki label kaynakları geçersiz
-  - [ ] `merged_data.csv` üretimi sadece `src/dataset/merger.py` + `build_dataset.py` ile yapılacak
+- [x] Tek kaynak kuralı getir:
+  - [x] `data/labels/cohort_*.jsonl` dışındaki label kaynakları geçersiz
+  - [x] `merged_data.csv` üretimi sadece `src/dataset/merger.py` + `build_dataset.py` ile yapılacak
 - [ ] 20260311 için resmi labeling'i yeniden çalıştır:
   - [ ] `python -m src.pipelines.label --cohort-id 20260311 --force --no-headless`
-  - [ ] `data/labels/cohort_20260311.jsonl` dosyasının varlığını doğrula
+  - [x] `data/labels/cohort_20260311.jsonl` dosyasının varlığını doğrula
   - [ ] `cohort_20260311_summary.yaml` üretimini zorunlu kıl
 - [ ] SQLite state tutarlılığı:
   - [ ] `cohorts` tablosunda 20260311 kaydı `status='labeled'`
@@ -1182,6 +1185,8 @@ Sources for sold_within_7_days:
 | 14 | `0f26358` | `feat: M2 temporal labeling system + crash-safe scrape pipeline` | develop |
 | 15 | `681574c` | `feat: comprehensive parser improvements + seed seller expansion` | develop |
 | 16 | `c0429c4` | `feat(phase9): kickoff feature engineering pipeline and todo updates` | develop |
+| 17 | `50d2b92` | `docs(todo): sync phase 9.1 status and roadmap metadata` | develop |
+| 18 | `0d22d9c` | `feat(labeling): add early-label guard and strict active classification` | develop |
 
 ## 🏗️ Altyapı Envanteri
 
@@ -1251,13 +1256,22 @@ src/evaluation/         ← ⏳ Boş (Phase 15-17)
 > **Zaman çizelgesi:**
 > - 11 Mart: ✅ Scrape + ✅ Cleaning pipeline
 > - 19 Mart: ✅ Phase 9 kickoff (engineer.py + metadata + todo sync)
-> - 19-20 Mart: RC1 (7-day guard + early-label exclude)
-> - 20 Mart+: RC2/RC3 + resmi relabeling + dataset rebuild
+> - 19 Mart: ✅ RC1 (7-day guard + early-label exclude)
+> - 19 Mart: ✅ RC2 (strict active classification + unknown fallback)
+> - 20 Mart+: RC3 (resmi relabeling + dataset rebuild)
 >
 > **Şu an yapılacak (M3 Phase 9.1):**
 > 1. ✅ `src/pipelines/label.py` içine 7-gün guard + `--force-early-label` kontrolü eklendi
 > 2. ✅ `src/labeling/status_checker.py` active fallback mantığı sıkılaştırıldı
 > 3. Resmi relabeling (`cohort_20260311`) + `build_dataset.py` ile `merged_data.csv` yeniden üret
 >
+> **RC3 Execution Checklist (aktif):**
+> - [ ] `python -m src.pipelines.label --cohort-id 20260311 --force --no-headless`
+> - [x] `data/labels/cohort_20260311.jsonl` dosyasını doğrula
+> - [ ] `data/labels/cohort_20260311_summary.yaml` dosyasını doğrula
+> - [x] `python -m src.pipelines.build_dataset --all`
+> - [x] `data/interim/merged_data.csv` target dağılımını yeniden raporla
+> - [ ] Phase 9.1 RC3 checkbox'larını update et
+>
 > ✅ M0 Foundation + M1 Data Collection + M3 Phase 8 tamamlandı.
-> 📊 Geçici FE çıktısı: `data/processed/engineered_features.parquet` (8167 satır, training için henüz bloke)
+> 📊 Geçici FE çıktısı: `data/processed/engineered_features.parquet` (eski sürüm, canonical veri güncellendiği için yeniden üretilecek)

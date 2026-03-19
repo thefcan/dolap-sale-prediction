@@ -1,56 +1,96 @@
 #!/usr/bin/env python3
-"""Target Variable Labeling Analysis"""
+"""Target variable QC analysis with schema fallbacks.
+
+Reads canonical ``data/interim/merged_data.csv`` and reports:
+- label coverage
+- sold/not-sold distribution
+- window QC metrics (valid/early/late) using labeled_at or checked_at
+- per-cohort label coverage
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
 import pandas as pd
-from datetime import datetime
 
-df = pd.read_csv('data/interim/merged_data.csv')
-df['label_window_days'] = (pd.to_datetime(df['labeled_at']) - pd.to_datetime(df['scraped_at'])).dt.total_seconds() / 86400
+INPUT_PATH = Path("data/interim/merged_data.csv")
+OUT_PATH = Path("artifacts/metrics/target_variable_report.json")
 
-print("\n" + "="*80)
-print("TARGET VARIABLE LABELING ANALYSIS REPORT")
-print("="*80)
 
-print(f"\n📊 DATASET OVERVIEW")
-print(f"   Total rows: {len(df)}")
+def _get_label_timestamp(df: pd.DataFrame) -> pd.Series:
+    if "labeled_at" in df.columns:
+        ts = pd.to_datetime(df["labeled_at"], errors="coerce", utc=True)
+        if ts.notna().sum() > 0:
+            return ts
+    if "checked_at" in df.columns:
+        return pd.to_datetime(df["checked_at"], errors="coerce", utc=True)
+    return pd.Series([pd.NaT] * len(df), index=df.index)
 
-print(f"\n🎯 TARGET VARIABLE DISTRIBUTION (sold_within_7_days)")
-for val in [False, True]:
-    count = (df['sold_within_7_days'] == val).sum()
-    pct = 100 * count / len(df)
-    print(f"   {val}: {count} ({pct:.1f}%)")
 
-print(f"\n⏰ LABEL WINDOW STATISTICS (labeled_at - scraped_at)")
-print(f"   Mean: {df['label_window_days'].mean():.2f} days")
-print(f"   Median: {df['label_window_days'].median():.2f} days")
-print(f"   Min: {df['label_window_days'].min():.2f} days")
-print(f"   Max: {df['label_window_days'].max():.2f} days")
-print(f"   Std: {df['label_window_days'].std():.2f} days")
+def main() -> None:
+    df = pd.read_csv(INPUT_PATH)
 
-# Anomalies
-print(f"\n⚠️ ANOMALIES")
-negative = (df['label_window_days'] < 0).sum()
-too_early = (df['label_window_days'] < 3).sum()
-too_late = (df['label_window_days'] > 15).sum()
-print(f"   Negative window (labeled before scraped): {negative}")
-print(f"   Too early re-check (< 3 days): {too_early}")
-print(f"   Too late re-check (> 15 days): {too_late}")
+    df["scraped_at"] = pd.to_datetime(df.get("scraped_at"), errors="coerce", utc=True)
+    label_ts = _get_label_timestamp(df)
+    target = pd.to_numeric(df.get("sold_within_7_days"), errors="coerce")
 
-print(f"\n🔍 COHORT ANALYSIS")
-for cohort in sorted(df['cohort_id'].unique()):
-    subset = df[df['cohort_id'] == cohort]
-    sold = (subset['sold_within_7_days'] == True).sum()
-    not_sold = (subset['sold_within_7_days'] == False).sum()
-    na_count = subset['sold_within_7_days'].isna().sum()
-    print(f"   {cohort}:")
-    print(f"      Total: {len(subset)} listings")
-    print(f"      Sold (True): {sold}")
-    print(f"      Not sold (False): {not_sold}")
-    print(f"      Unknown/NULL: {na_count}")
-    print(f"      Avg label window: {subset['label_window_days'].mean():.2f} days")
+    window_hours = (label_ts - df["scraped_at"]).dt.total_seconds() / 3600.0
+    window_valid = window_hours.notna()
 
-# Training readiness
-ready = df[(df['label_window_days'] >= 6) & (df['label_window_days'] <= 8) & (df['sold_within_7_days'].notna())]
-print(f"\n✅ TRAINING READINESS")
-print(f"   Rows with ideal label window (6-8 days) + valid target: {len(ready)} ({100*len(ready)/len(df):.1f}%)")
+    valid_window_count = int(((window_hours >= 168) & (window_hours <= 192)).sum())
+    early_window_count = int((window_hours < 168).sum())
+    late_window_count = int((window_hours > 192).sum())
+    non_null_window_count = int(window_valid.sum())
+    early_window_ratio = (
+        round(early_window_count / non_null_window_count, 4)
+        if non_null_window_count > 0
+        else 0.0
+    )
 
-print("\n" + "="*80)
+    target_non_null = int(target.notna().sum())
+    total_rows = int(len(df))
+
+    report = {
+        "total_rows": total_rows,
+        "cohort_count": int(df["cohort_id"].astype(str).nunique()) if "cohort_id" in df.columns else 0,
+        "target_non_null": target_non_null,
+        "target_null": int(target.isna().sum()),
+        "target_distribution_non_null": {str(k): int(v) for k, v in target.dropna().value_counts().to_dict().items()},
+        "window_non_null": non_null_window_count,
+        "valid_window_count": valid_window_count,
+        "early_window_count": early_window_count,
+        "late_window_count": late_window_count,
+        "early_window_ratio": early_window_ratio,
+    }
+
+    if "cohort_id" in df.columns:
+        cohort_stats = {}
+        for cid, g in df.groupby("cohort_id"):
+            t = pd.to_numeric(g.get("sold_within_7_days"), errors="coerce")
+            cohort_stats[str(cid)] = {
+                "rows": int(len(g)),
+                "target_non_null": int(t.notna().sum()),
+                "target_null": int(t.isna().sum()),
+            }
+        report["cohort_stats"] = cohort_stats
+
+    OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    OUT_PATH.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    print("=" * 80)
+    print("TARGET VARIABLE QC REPORT")
+    print("=" * 80)
+    print(f"rows: {report['total_rows']}")
+    print(f"target_non_null: {report['target_non_null']}")
+    print(f"target_null: {report['target_null']}")
+    print(f"valid_window_count: {report['valid_window_count']}")
+    print(f"early_window_count: {report['early_window_count']}")
+    print(f"early_window_ratio: {report['early_window_ratio']}")
+    print(f"report_saved_to: {OUT_PATH}")
+    print("=" * 80)
+
+
+if __name__ == "__main__":
+    main()

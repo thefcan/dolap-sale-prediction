@@ -11,7 +11,8 @@ End-to-end pipeline:
   2. Merge raw snapshots + labels → interim parquet (per cohort)
   3. Concatenate all cohorts
   4. Clean (dedup, missing, outlier, dtype)
-  5. Save cleaned dataset to data/interim/
+    5. Save cleaned dataset to data/interim/
+    6. Write canonical merged_data output used by downstream training/FE
 """
 
 from __future__ import annotations
@@ -19,6 +20,8 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+
+import pandas as pd
 
 from src.dataset.merger import DatasetMerger
 from src.preprocessing.cleaner import DataCleaner
@@ -51,6 +54,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Skip merge step (use existing merged parquets)",
     )
+    parser.add_argument(
+        "--no-canonical",
+        action="store_true",
+        help="Skip writing canonical merged_data.csv output",
+    )
     return parser.parse_args(argv)
 
 
@@ -77,14 +85,13 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(1)
 
     logger.info(f"Processing cohorts: {cohort_ids}")
+    logger.info("Label source policy: only data/labels/cohort_*.jsonl is considered official")
 
     # ── Step 2: Merge raw + labels (per cohort) ─────────────────────────
     if not args.skip_merge:
         combined = merger.merge_all(cohort_ids=cohort_ids, save=True)
     else:
         # Load existing merged_all.parquet
-        import pandas as pd
-
         merged_path = output_dir / "merged_all.parquet"
         if not merged_path.exists():
             logger.error(f"--skip-merge used but {merged_path} not found.")
@@ -97,6 +104,13 @@ def main(argv: list[str] | None = None) -> None:
     # ── Step 3: Clean ────────────────────────────────────────────────────
     cleaner = DataCleaner()
     cleaned = cleaner.transform(combined)
+
+    # Unlabeled rows are represented as -1 in merger; normalize to NaN for downstream checks.
+    if "sold_within_7_days" in cleaned.columns:
+        cleaned["sold_within_7_days"] = pd.to_numeric(
+            cleaned["sold_within_7_days"], errors="coerce"
+        )
+        cleaned.loc[cleaned["sold_within_7_days"] == -1, "sold_within_7_days"] = pd.NA
 
     # ── Step 4: Save cleaned output ──────────────────────────────────────
     out_parquet = output_dir / "cleaned_all.parquet"
@@ -111,7 +125,21 @@ def main(argv: list[str] | None = None) -> None:
     cleaned.to_csv(out_csv, index=False)
     logger.info(f"Saved: {out_csv}")
 
-    # ── Step 5: Summary ──────────────────────────────────────────────────
+    # ── Step 5: Canonical merged output (single source of truth) ───────
+    if not args.no_canonical:
+        canonical_csv = output_dir / "merged_data.csv"
+        canonical_parquet = output_dir / "merged_data.parquet"
+
+        cleaned.to_csv(canonical_csv, index=False)
+        logger.info(f"Saved canonical CSV: {canonical_csv}")
+
+        try:
+            cleaned.to_parquet(canonical_parquet, index=False)
+            logger.info(f"Saved canonical parquet: {canonical_parquet}")
+        except ImportError:
+            logger.warning("pyarrow not installed — skipping canonical parquet")
+
+    # ── Step 6: Summary ──────────────────────────────────────────────────
     logger.info("=" * 60)
     logger.info("BUILD DATASET — SUMMARY")
     logger.info("=" * 60)
