@@ -664,61 +664,145 @@ Sources for sold_within_7_days:
 
 #### 🎯 **TRAINING READINESS REPORT (19 Mart 2026)**
 
-**Current State:** `data/interim/merged_data.csv` (6016 listings from cohort_20260311)
+**Current State:** `data/interim/merged_data.csv` (single source CSV)
 
 ```
-📊 TARGET VARIABLE DISTRIBUTION:
-   False (Not Sold): 5797 listings (96.4%)
-   True  (Sold):       219 listings (3.6%)
-   
-⏰ LABEL TIMING (Quality Check):
-   Label Window (labeled_at - scraped_at):
-      Mean: 6.44 days ✅ (Ideal!)
-      Median: 6.44 days ✅
-      Range: 6.39 ~ 6.48 days ✅ (Tight! No anomalies)
-      Std: 0.03 days ✅ (Very consistent)
-      
-🔍 DATA QUALITY:
-   Negative window (labeled < scraped): 0 ✅
-   Too early re-check (< 3 days): 0 ✅
-   Too late re-check (> 15 days): 0 ✅
-   
-✅ COHORT STATUS:
-   Cohort 20260311: 6016 listings | 219 sold | 5797 not sold
-   Cohort 20260308: ⏳ Not yet T+7 (T+7 = 2026-03-15 pending)
-   Cohort 20250712: Pilot data, older labeling method
-   
-✅ TRAINING READINESS:
-   Rows ready for training: 6016/6016 (100.0%) ✅
-   All rows have valid sold_within_7_days label
-   Label timing perfect for all rows
+📊 DATASET OVERVIEW:
+  Total rows: 8167
+  Cohort count in file: 1 (20260311)
+
+🎯 TARGET COVERAGE:
+  Labeled rows (sold_within_7_days non-null): 6016
+  Unlabeled rows: 2151
+
+🎯 TARGET DISTRIBUTION (only labeled subset):
+  False (Not Sold): 5797 (96.36%)
+  True  (Sold):       219 (3.64%)
+
+⏰ LABEL TIMING (only labeled subset):
+  Mean:   6.4363 days
+  Median: 6.4367 days
+  Min:    6.3889 days
+  Max:    6.4815 days
+  < 7 days: 6016 rows  (⚠️ tüm labeled kayıtlar erken)
 ```
 
-**🚨 CRITICAL ISSUE: SEVERE CLASS IMBALANCE**
-
-```
-Problem: 96.4% Not Sold vs 3.6% Sold
-   - Simple Accuracy: 96.4% (baseline for "always predict not sold")
-   - This metric is USELESS! Must use ROC-AUC or F1-score
-
-Solutions for Feature Engineering:
-   ✅ Use class_weight='balanced' in models
-   ✅ Consider SMOTE or undersampling in preprocessing
-   ✅ Use AUC-ROC as primary metric (not accuracy)
-   ✅ Use F1-score as secondary metric
-   ✅ Threshold tuning on validation set
-   
-Notes:
-   - 219 positive examples → decent for binary classification (not too few)
-   - May need stratified cross-validation
-   - Cost-sensitive learning recommended
-```
+**🚨 INTERPRETATION (güncel):**
+- File artık tek CSV olsa da label kalitesi henüz hedefe uygun değil.
+- Labeled subset'teki tüm kayıtlar 7 günden kısa pencerede etiketlenmiş görünüyor.
+- Bu nedenle model eğitimine geçmeden önce Phase 9.1 root-cause planı tamamlanmalı.
 
 **Action Items (Blocking):**
 - [x] Target variable definition ✅
 - [x] Label timing validation ✅
 - [x] Class balance analysis ✅
 - [ ] Feature engineering can PROCEED (class imbalance is KNOWN and HAS MITIGATION)
+
+---
+
+#### 🚨 **PHASE 9.1 — ROOT CAUSE ACTION PLAN (ÖNCELIK: EN YÜKSEK)**
+
+> Amaç: `sold_within_7_days` etiketini gerçek 7 gün kuralına göre güvenilir hale getirmek.
+> Not: Bu bölüm tamamlanmadan EDA sunumunda yeni sonuç paylaşılmayacak.
+
+**Root Cause 1 — 7 gün dolmadan label atılması (kritik veri hatası)**
+- [ ] `labeled_at - scraped_at` için **hard rule** tanımla:
+  - [ ] `< 168 saat` olan kayıtları `invalid_early_label=True` olarak flagle
+  - [ ] Bu kayıtları training set'ten çıkar (`exclude_from_training=True`)
+  - [ ] 168-192 saat aralığını valid kabul et (7-8 gün tolerance)
+- [ ] `src/pipelines/label.py` içine guard ekle:
+  - [ ] Cohort yaşı 7 günden küçükse labeling job'u fail etsin
+  - [ ] `--force-early-label` olmadan erken labeling'e izin verme
+- [ ] QC raporu üret:
+  - [ ] valid_window_count
+  - [ ] early_window_count
+  - [ ] early_window_ratio
+
+**Definition of Done (RC1):**
+- [ ] Dataset'te `<168 saat` label penceresi oranı `%0`
+- [ ] Label pipeline logunda erken cohort engellendi bilgisi görünüyor
+
+**Root Cause 2 — Active fallback nedeniyle belirsiz sayfaların active'a kayması**
+- [ ] `src/labeling/status_checker.py` sınıflandırma mantığını sıkılaştır:
+  - [ ] Homepage/redirect title tespiti ekle → `status='error'` veya `status='unknown'`
+  - [ ] Active kararı için en az 2 güçlü kanıt zorunlu olsun:
+    - [ ] ürün başlığı selector
+    - [ ] fiyat/sepete ekle bileşeni
+    - [ ] listing id'nin URL ile uyuşması
+  - [ ] Tek başına `len(page_source)>5000` kuralı active için yeterli olmasın
+- [ ] 100 örnek manuel audit:
+  - [ ] sold=50, active=50 rastgele örnek
+  - [ ] yanlış sınıflananları `label_audit.csv` ile kaydet
+
+**Definition of Done (RC2):**
+- [ ] Homepage title + active eşleşmesi `%0` veya açıkça `unknown`
+- [ ] Manual audit doğruluk oranı `>= %95`
+
+**Root Cause 3 — 20260311 label üretiminin resmi pipeline dışı olması**
+- [ ] Tek kaynak kuralı getir:
+  - [ ] `data/labels/cohort_*.jsonl` dışındaki label kaynakları geçersiz
+  - [ ] `merged_data.csv` üretimi sadece `src/dataset/merger.py` + `build_dataset.py` ile yapılacak
+- [ ] 20260311 için resmi labeling'i yeniden çalıştır:
+  - [ ] `python -m src.pipelines.label --cohort-id 20260311 --force --no-headless`
+  - [ ] `data/labels/cohort_20260311.jsonl` dosyasının varlığını doğrula
+  - [ ] `cohort_20260311_summary.yaml` üretimini zorunlu kıl
+- [ ] SQLite state tutarlılığı:
+  - [ ] `cohorts` tablosunda 20260311 kaydı `status='labeled'`
+  - [ ] `label_date`, `labeled_count` alanları dolu
+
+**Definition of Done (RC3):**
+- [ ] 20260311 label dosyası + summary dosyası + DB state birbirini tutuyor
+- [ ] Repro komutu ile aynı sonuç tekrar üretilebiliyor
+
+**Root Cause 4 — Seller dağılım dengesizliği ve düşük satış oranı**
+- [ ] Seller concentration analizi üret:
+  - [ ] top10 seller payı
+  - [ ] top20 seller payı
+  - [ ] seller başına sold rate dağılımı
+- [ ] Modelleme hazırlığı için mitigasyon:
+  - [ ] Group-aware split (seller leakage azaltımı)
+  - [ ] Seller-frequency feature (log_count)
+  - [ ] Aşırı dominant seller'lar için cap/weight stratejisi
+- [ ] Raporla:
+  - [ ] “Marketplace behavior vs labeling artifact” ayrımı
+  - [ ] category bazında doğal düşük satış olasılığı
+
+**Definition of Done (RC4):**
+- [ ] Seller concentration metriği rapora işlendi
+- [ ] Train/val split seller leakage kontrolünden geçti
+
+---
+
+#### ✅ **EDA PRESENTATION GATE (Veri Doğrulama Sonrası)**
+
+> EDA sunumuna geçiş şartı: önce label güvenilirliği doğrulanacak.
+
+**Gate-0: Data Readiness (zorunlu)**
+- [ ] Tüm kullanılan cohort'larda `label_window_hours >= 168`
+- [ ] `unknown/error` etiket oranı raporlandı
+- [ ] Label kaynağı resmi pipeline çıktısı
+- [ ] Final analiz dataseti yeniden üretildi (`build_dataset.py`)
+
+**Gate-1: EDA Presentation Update Plan**
+- [ ] Notebook target dağılımını yeni verified dataset ile güncelle
+- [ ] "Labeling reliability" slide'ı ekle:
+  - [ ] erken label hatası bulgusu
+  - [ ] active fallback düzeltmesi
+  - [ ] pipeline standardizasyonu
+- [ ] Eski (6.4 gün) metrikleri arşivle, sunumdan kaldır
+- [ ] Yeni confusion-risk notu ekle: removed/unknown handling
+
+**Gate-2: Sunum Akışı (revize)**
+- [ ] Bölüm 1: Problem + 7-day ground truth tanımı
+- [ ] Bölüm 2: Data collection + label QA süreci
+- [ ] Bölüm 3: EDA (yalnızca verified labels)
+- [ ] Bölüm 4: Feature engineering kararları
+- [ ] Bölüm 5: Limitations + next iteration
+
+**Definition of Done (EDA Gate):**
+- [ ] Notebook'taki tüm target grafikleri verified label dataset'ten üretilmiş
+- [ ] Sunumda "proxy/erken label" kalıntısı yok
+- [ ] Takım prova notlarında veri doğrulama adımı anlatılıyor
 
 ---
 
