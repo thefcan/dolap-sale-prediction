@@ -585,35 +585,366 @@
 
 ### Phase 9 — Feature Engineering
 > commit hedefi: `feat: feature engineering pipeline`
+> 🔴 **ÖNCELİK:** Target Variable Definition → Feature Definition sırası **KESINLIKLE ÖNEMLİ**
 
-- [ ] `src/features/engineer.py` — ana feature engineering sınıfı
-- [ ] **İlan özellikleri:**
-  - `price` (ham)
-  - `price_to_category_median` (fiyat / kategori medyan fiyatı)
-  - `photo_count`
-  - `description_length` (char count)
-  - `description_word_count`
-  - `listing_hour` (0-23)
-  - `is_weekend_listing`
-  - `has_discount`
-  - `shipping_buyer_pays`
-- [ ] **Marka kademesi:**
-  - `brand_tier` (1-5, `configs/features.yaml`'dan)
-  - Bilinmeyen marka → tier 0 veya median tier
-- [ ] **Durum etiketi:**
-  - `condition` ordinal encoding (Yeni & Etiketli=3, Yeni=2, Az Kullanılmış=1, Kullanılmış=0)
-- [ ] **Kategorik encoding:**
-  - `category` → target encoding
-  - `color` → target encoding
-  - `size` → ordinal/target encoding
-- [ ] **Satıcı özellikleri:**
-  - `seller_rating_count`
-  - `seller_sales_count` (mümkünse)
-- [ ] **Metin özellikleri:**
-  - `desc_has_urgency_keyword` (acil, son fiyat, indirim, fırsat, pazarlık)
-- [ ] Oluşturulan feature'ların `configs/features.yaml` ile tutarlılık kontrolü
-- [ ] Final output: `data/processed/dataset.parquet`
-- [ ] Feature listesi metadata'ya kaydet
+---
+
+#### ⚠️ **PHASE 9.0 — TARGET VARIABLE DEFINITION (İlk Yapılacak)**
+
+**🎯 Target Variable Specification:**
+```
+target = sold_within_7_days (Binary: 0=Not Sold, 1=Sold within 7 days)
+
+Definition: A listing is labeled as "sold" if:
+  1. Listed at scraped_at = T (scrape tarihinde aktif)
+  2. Re-checked at labeled_at = T+7 days (7 gün sonra, ±1 gün tolerance)
+  3. At T+7: is_sold == True OR status == "sold" (Dolap API/site kontrol)
+  
+Sources for sold_within_7_days:
+  ✅ merged_data.csv'de zaten var: sold_within_7_days kolon
+  ✅ Veri kaynakları:
+     - is_sold (True/False) → Dolap listing endpoint'inden
+     - status (active/sold/deleted/expired) → Dolap site HTML'sinden
+     - labeled_at (datetime) → Re-check timestamp
+     - scraped_at (datetime) → Original scrape timestamp
+```
+
+**🚨 Data Quality Checks (MUTLAKA YAPILMALI):**
+
+1. **Temporal Window Validation:**
+   - [ ] `labeled_at - scraped_at` dağılımını kontrol et
+   - [ ] Ideal: ~7 days (604,800 sn)
+   - [ ] Tolerance: 6-8 days (müsaade edilen sapma)
+   - [ ] Anomali: 
+     - [ ] `labeled_at < scraped_at` → Data entry error (EXCLUDE)
+     - [ ] `labeled_at - scraped_at > 15 days` → Çok geç re-check (accuracy düşüyor, flag)
+     - [ ] `labeled_at - scraped_at < 3 days` → Çok erken re-check (EXCLUDE)
+
+2. **Label Distribution Check:**
+   - [ ] Count: kaç % sold, kaç % not_sold
+   - [ ] Expected: ~20-30% sold (optimal tahmin), ~70-80% not sold
+   - [ ] **If highly imbalanced:** `class_weight='balanced'` modellerde kullan
+   - [ ] **If < 10% sold:** Undersampling warning — çok az positive example
+
+3. **Deleted/Expired Listings:**
+   - [ ] `status == 'deleted'` → sold_within_7_days ne olmalı?
+     - [ ] Option A: Exclude from dataset (yapı eksik)
+     - [ ] Option B: Treat as "not sold" (platform politikası)
+   - [ ] `status == 'expired'` → same decision
+   - [ ] Current handling: ✅ Belirt todo'ya
+
+4. **Cohort Consistency:**
+   - [ ] Tüm cohortlarda labeled_at var mı?
+   - [ ] cohort_20250712 vs cohort_20260311 → hangileri T+7 kontrolüne hazır?
+   - [ ] Yeni cohortlar (henüz T+7'ye ulaşmamış) → exclude from training
+
+5. **Missing sold_within_7_days:**
+   - [ ] Kaç satır NULL/NaN sold_within_7_days değerine sahip?
+   - [ ] sebep nedir? → Exclude
+
+**📊 Labeling Status Report (merged_data.csv analizi):**
+- [ ] **Cohort 20250712:** 
+  - [ ] Toplam üretim: 411 ilan
+  - [ ] Kaç tanesi labeled (sold_within_7_days != NULL)?
+  - [ ] sold=True: ? | sold=False: ? | Unknown: ?
+- [ ] **Cohort 20260311:**
+  - [ ] Toplam üretim: ?
+  - [ ] Kaç tanesi labeled (labeled_at >= 2026-03-18, yani T+7 geçti)?
+  - [ ] sold=True: ? | sold=False: ? | Unknown: ?
+- [ ] **Cohort 20260308:**
+  - [ ] T+7 tarihi: 2026-03-15 (geçti mi?)
+  - [ ] Henüz labeled mi?
+- [ ] **Action:** 
+  - [ ] Unlabeled cohortları training'den exclude et
+  - [ ] Only use cohorts where labeled_at is available
+
+**✅ Feature Engineering Starts AFTER Target is Verified**
+
+---
+
+#### 🎯 **TRAINING READINESS REPORT (19 Mart 2026)**
+
+**Current State:** `data/interim/merged_data.csv` (6016 listings from cohort_20260311)
+
+```
+📊 TARGET VARIABLE DISTRIBUTION:
+   False (Not Sold): 5797 listings (96.4%)
+   True  (Sold):       219 listings (3.6%)
+   
+⏰ LABEL TIMING (Quality Check):
+   Label Window (labeled_at - scraped_at):
+      Mean: 6.44 days ✅ (Ideal!)
+      Median: 6.44 days ✅
+      Range: 6.39 ~ 6.48 days ✅ (Tight! No anomalies)
+      Std: 0.03 days ✅ (Very consistent)
+      
+🔍 DATA QUALITY:
+   Negative window (labeled < scraped): 0 ✅
+   Too early re-check (< 3 days): 0 ✅
+   Too late re-check (> 15 days): 0 ✅
+   
+✅ COHORT STATUS:
+   Cohort 20260311: 6016 listings | 219 sold | 5797 not sold
+   Cohort 20260308: ⏳ Not yet T+7 (T+7 = 2026-03-15 pending)
+   Cohort 20250712: Pilot data, older labeling method
+   
+✅ TRAINING READINESS:
+   Rows ready for training: 6016/6016 (100.0%) ✅
+   All rows have valid sold_within_7_days label
+   Label timing perfect for all rows
+```
+
+**🚨 CRITICAL ISSUE: SEVERE CLASS IMBALANCE**
+
+```
+Problem: 96.4% Not Sold vs 3.6% Sold
+   - Simple Accuracy: 96.4% (baseline for "always predict not sold")
+   - This metric is USELESS! Must use ROC-AUC or F1-score
+
+Solutions for Feature Engineering:
+   ✅ Use class_weight='balanced' in models
+   ✅ Consider SMOTE or undersampling in preprocessing
+   ✅ Use AUC-ROC as primary metric (not accuracy)
+   ✅ Use F1-score as secondary metric
+   ✅ Threshold tuning on validation set
+   
+Notes:
+   - 219 positive examples → decent for binary classification (not too few)
+   - May need stratified cross-validation
+   - Cost-sensitive learning recommended
+```
+
+**Action Items (Blocking):**
+- [x] Target variable definition ✅
+- [x] Label timing validation ✅
+- [x] Class balance analysis ✅
+- [ ] Feature engineering can PROCEED (class imbalance is KNOWN and HAS MITIGATION)
+
+---
+
+#### 📋 **NEXT STEPS: Feature Engineering Checklist**
+
+**Before touching src/features/engineer.py, ensure:**
+
+1. **Data Validation:**
+   - [ ] Run `scripts/analyze_target_variable.py` on latest merged_data.csv
+   - [ ] Verify: No NULL/NaN in `sold_within_7_days`
+   - [ ] Verify: All label windows within 6-8 days
+   - [ ] Verify: No negative windows or anomalies
+
+2. **Feature List Documentation:**
+   - [ ] Update `configs/features.yaml` with all features to engineer
+   - [ ] Include: data type, encoding method, reason for inclusion, expected range
+   - [ ] Include: handling rules for missing values
+   - [ ] Include: categorical cardinality for categories/colors/sizes
+
+3. **Feature Engineering Implementation:**
+   - Implement in order of importance:
+     - [ ] **Core:** price, photo_count, description_length, condition_ordinal
+     - [ ] **Temporal:** listing_hour, is_weekend_listing, days_since_scrape
+     - [ ] **Categorical:** category_target_encoded, color, size
+     - [ ] **Seller:** seller_rating_count
+     - [ ] **Text:** desc_has_urgency_keyword, has_flaw_mention
+     - [ ] **Derived:** price_to_category_median, price_to_brand_median, brand_tier
+   - Note: Do NOT create features without domain knowledge
+
+4. **Feature Validation:**
+   - [ ] Test each feature on a sample of 100 rows manually
+   - [ ] Check for data leakage (e.g., time-future features)
+   - [ ] Ensure no inf/NaN in continuous features
+   - [ ] Verify categorical cardinality is reasonable (< 100 for most)
+
+5. **Output & Testing:**
+   - [ ] Save engineered features → `data/processed/features.parquet`
+   - [ ] Create feature metadata JSON (name, type, encoding, missing_handling)
+   - [ ] Run basic sanity checks → `scripts/validate_features.py` (create this)
+   - [ ] Merge features with target → final dataset for modeling
+
+---
+
+- [ ] `src/features/engineer.py` — Feature Engineering Pipeline Class
+  - [ ] Input: `data/interim/merged_data.csv` (raw data + labels + merged cohorts)
+  - [ ] Output: `data/processed/engineered_features.parquet` (numerical features)
+  - [ ] Methods:
+    ```python
+    class FeatureEngineer:
+      def engineer_price_features() → ["price", "price_to_category_median", "price_log", "has_discount"]
+      def engineer_listing_features() → ["photo_count", "desc_length", "desc_word_count", "comment_count", "like_count"]
+      def engineer_temporal_features() → ["listing_hour", "listing_dow", "is_weekend", "days_since_scrape"]
+      def engineer_categorical_features() → ["category_encoded", "condition_ordinal", "color_encoded", "size_encoded"]
+      def engineer_seller_features() → ["seller_rating_count"]
+      def engineer_text_features() → ["desc_has_urgency", "desc_has_flaw", "desc_placeholder"]
+      def engineer_derived_features() → ["price_to_brand_median", "brand_tier", "category_price_percentile"]
+    ```
+
+- [ ] **Feature Details (with implementations):**
+
+  **🟦 Continuous Features:**
+  
+  1. **price** (Raw Pricing)
+     - Source: `price` column
+     - Handling: Outlier check (< 10 TL or > 50000 TL → flag), log-transform for skewness
+     - Type: Float
+     - Expected range: 10-50000 TL
+     - ML note: Likely strong predictor, but check for too-cheap/too-expensive anomalies
+  
+  2. **price_to_category_median** (Category-normalized price)
+     - Formula: price / category_median_price
+     - Interpretation: Below median (<1.0) vs above median (>1.0)
+     - Hypothesis: Cheap listings sell faster → lower ratio → higher sale probability
+     - Type: Float
+     - Expected range: 0.2-5.0
+     - Handling: Clamp at [0.1, 10.0] to avoid extreme ratios
+  
+  3. **photo_count** (Visual Marketing Signal)
+     - Source: `photo_count` column
+     - Interpretation: More photos → more serious seller / better product visibility
+     - Hypothesis: 3+ photos vs 1-2 photos → higher sale probability
+     - Type: Integer
+     - Expected range: 1-30
+     - Note: May have max cap on Dolap platform
+  
+  4. **description_length** (Text Effort Signal)
+     - Source: `description_text` → character count
+     - Interpretation: Longer descriptions → more effort → more trustworthy
+     - Hypothesis: Description length > median → higher sale probability
+     - Type: Integer
+     - Expected range: 0-5000 characters
+     - Handling: Cap at 5000 (extremely long descriptions are rare/anomalies)
+  
+  5. **description_word_count** (Vocabulary Signal)
+     - Source: `description_text` → word count
+     - Interpretation: More words → more detailed / better English proficiency
+     - Type: Integer
+     - Expected range: 0-500 words
+  
+  6. **like_count** (Engagement Signal - USE WITH CAUTION)
+     - Source: `like_count` column
+     - ⚠️ Data Leakage Risk: If likes increase AFTER initial listing, this is a time-series feature
+     - Decision: Do NOT use likes as feature (leakage) OR use only initial likes at scrape time
+     - If using: Ensure only using `like_count @ scraped_at`, not any later counts
+  
+  7. **comment_count** (Social Proof Signal)
+     - Source: `comment_count` column
+     - ⚠️ Same leakage risk as like_count
+     - Decision: Do NOT use comments as feature (leakage risk)
+  
+  8. **seller_rating_count** (Seller Experience Signal)
+     - Source: `seller_rating_count` column
+     - Interpretation: More ratings → more experienced seller → more trustworthy
+     - Hypothesis: Higher rating count → higher sale probability
+     - Type: Float
+     - Expected range: 0-10000
+     - Handling: Log-transform for skewness (ratings follow power-law)
+  
+  9. **price_log** (Non-linear price)
+     - Formula: log1p(price)
+     - Reason: Prices are right-skewed; log captures diminishing utility of extra TL
+     - Type: Float
+     - Expected range: 2.3-10.8 (log(10) to log(50000))
+  
+  10. **brand_tier** (Brand Prestige Proxy)
+      - Source: `brand` → median price per brand → quantile → tier
+      - Tiers: 0-5 (0=unknown, 1=budget, 5=luxury)
+      - Hypothesis: Luxury brands may have different sale dynamics (e.g., more negotiable)
+      - Type: Integer
+      - Expected cardinality: 6 categories
+      - Handling: Unknown brands → tier 0 or median tier (config decision)
+
+  **🟪 Categorical Features:**
+  
+  11. **category** (Product Category)
+      - Source: `category` column
+      - Encoding: Target Encoding (mean `sold_within_7_days` per category)
+      - Type: Float (after target encoding)
+      - Expected cardinality: 10-15 categories
+      - Hypothesis: Some categories have more active buyers (e.g., shoes vs accessories)
+  
+  12. **condition** (Product Condition)
+      - Source: `condition` column
+      - Ordinal Mapping:
+        ```
+        "Yeni & Etiketli" → 3 (New with tag)
+        "Yeni" → 2 (New)
+        "Az Kullanılmış" → 1 (Lightly used)
+        "Kullanılmış" → 0 (Used)
+        ```
+      - Hypothesis: Newer items sell faster
+      - Type: Integer (ordinal)
+      - Expected range: 0-3
+  
+  13. **color** (Product Color)
+      - Source: `color` column
+      - Cardinality: 20-50+ colors
+      - Encoding: Target Encoding (mean `sold_within_7_days` per color) OR frequency-based grouping
+      - Hypothesis: Some colors more popular (e.g., black, white, blue)
+      - Handling: Colors with < 10 examples → "Other" category
+  
+  14. **size** (Product Size)
+      - Source: `size` column
+      - Cardinality: 30-100+ sizes (many combos like "S / 36", "M / 38")
+      - Encoding: Target Encoding OR ordinal (if convertible to numeric)
+      - Hypothesis: Popular sizes (M, L) sell faster than extreme sizes
+      - Handling: Sizes with < 5 examples → "Other" category
+  
+  15. **has_discount** (Pricing Strategy)
+      - Source: `has_discount` column (True if original_price present and > price)
+      - Interpretation: Discount signals urgency/clearance
+      - Hypothesis: Discounted items sell faster (more attractive)
+      - Type: Boolean → {0, 1}
+  
+  16. **shipping_buyer_pays** (Shipping Cost Signal)
+      - Source: `shipping_buyer_pays` column
+      - Interpretation: If buyer pays → higher total cost for buyer → maybe lower sale prob? (untested)
+      - Type: Boolean → {0, 1}
+      - Note: May need interaction with price
+
+  **🟧 Temporal Features:**
+  
+  17. **listing_hour** (Time of Day Listed)
+      - Source: `scraped_at` → extract hour (0-23 in UTC or local timezone)
+      - Hypothesis: Listings posted during work hours (9-17) may get more visibility
+      - Type: Integer 0-23
+      - Encoding: Could create is_peak_hours boolean (9-17) instead of raw hour
+  
+  18. **listing_dow** (Day of Week Listed)
+      - Source: `scraped_at` → extract day of week (0-6 or 0=Monday)
+      - Hypothesis: Weekday vs weekend listings have different dynamics
+      - Type: Integer 0-6
+      - Encoding: Boolean `is_weekend` (Friday-Sunday) OR cyclic encoding (sin/cos)
+  
+  19. **is_weekend_listing** (Weekend Indicator)
+      - Formula: listing_dow in [4, 5, 6] (Friday, Saturday, Sunday)
+      - Type: Boolean → {0, 1}
+
+  **🟩 Text-derived Features:**
+  
+  20. **desc_has_urgency_keyword** (Urgency Signal)
+      - Keywords: "acil", "son", "indirim", "fırsat", "pazarlık", "satılmalı"
+      - Type: Boolean → {0, 1}
+      - Hypothesis: Urgent language → seller motivated to sell → faster
+  
+  21. **desc_has_flaw_mention** (Flaw Honesty Signal)
+      - Keywords: "leke", "yırtık", "bozuk", "kusur", "hafif", "çizik"
+      - Type: Boolean → {0, 1}
+      - Hypothesis: Honest disclosure of flaws → more trustworthy → faster sale
+  
+  22. **desc_is_placeholder** (Effort Signal)
+      - Check: description_text == title (likely auto-generated)
+      - Type: Boolean → {0, 1}
+      - Hypothesis: Placeholder descriptions → less effort → slower sale
+
+- [ ] **Feature Validation & Storage:**
+  - [ ] Create `configs/features.yaml` with all feature definitions (metadata)
+  - [ ] Store engineering code in `src/features/` modules (not monolithic class)
+  - [ ] Generate feature importance baseline (on first few models)
+  - [ ] Save final feature matrix: `data/processed/engineered_features.parquet`
+  - [ ] Create features metadata JSON: name, dtype, encoding, missing_handling, range, importance_score
+
+- [ ] **Potential Data Leakage Checks:**
+  - ⚠️ **like_count / comment_count:** Only use @ scrape time, NOT later counts
+  - ⚠️ **seller_rating_count:** May be post-purchase ratings (if used, must be @ scrape time)
+  - ⚠️ **listing_date derived from other columns:** Ensure not using time-future information
 
 ### Phase 10 — Exploratory Data Analysis (EDA) ➡️ **EDA Presentation'a merge edildi**
 > ℹ️ Bu phase artık ayrı yapılmayacak. Tüm EDA içeriği yukarıdaki
