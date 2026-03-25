@@ -205,6 +205,12 @@ class CohortLabeler:
         # 6. Update cohort state in SQLite
         try:
             tracker = CohortStateTracker(db_path=self.db_path)
+            existing = tracker.get_cohort(self.cohort_id)
+            if not existing:
+                tracker.register_cohort(
+                    self.cohort_id,
+                    total_listings=len(results),
+                )
             tracker.update_status(
                 self.cohort_id,
                 status="labeled",

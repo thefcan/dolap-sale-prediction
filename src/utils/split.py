@@ -131,3 +131,69 @@ def temporal_train_val_test_split(
         "cutoff_test": cutoff_test,
         "split_sizes": split_sizes,
     }
+
+
+def temporal_group_train_val_test_split(
+    df: pd.DataFrame,
+    time_col: str = "listed_at",
+    group_col: str = "seller_username",
+    test_size: float = 0.15,
+    val_size: float = 0.15,
+) -> dict[str, Any]:
+    """Chronological split with seller leakage reduction.
+
+    The split starts with pure temporal slicing, then removes train rows whose
+    group appears in validation/test. This reduces optimistic leakage from the
+    same seller appearing across all splits.
+    """
+    base = temporal_train_val_test_split(
+        df=df,
+        time_col=time_col,
+        test_size=test_size,
+        val_size=val_size,
+    )
+
+    train_df = base["train"].copy()
+    val_df = base["val"].copy()
+    test_df = base["test"].copy()
+
+    if group_col not in train_df.columns:
+        raise ValueError(
+            f"Column '{group_col}' not found in DataFrame. "
+            f"Available columns: {list(df.columns)}"
+        )
+
+    val_groups = set(val_df[group_col].fillna("_missing_group_").astype(str).unique())
+    test_groups = set(test_df[group_col].fillna("_missing_group_").astype(str).unique())
+    blocked_groups = val_groups | test_groups
+
+    train_groups_before = set(train_df[group_col].fillna("_missing_group_").astype(str).unique())
+    leakage_groups_before = train_groups_before & blocked_groups
+
+    train_df = train_df[
+        ~train_df[group_col].fillna("_missing_group_").astype(str).isin(blocked_groups)
+    ].copy()
+
+    if train_df.empty:
+        raise ValueError(
+            "Group-aware temporal split removed all train rows. "
+            "Reduce val/test sizes or choose a less strict strategy."
+        )
+
+    train_groups_after = set(train_df[group_col].fillna("_missing_group_").astype(str).unique())
+    leakage_groups_after = train_groups_after & blocked_groups
+
+    result = dict(base)
+    result["train"] = train_df
+    result["split_sizes"] = {
+        "train": len(train_df),
+        "val": len(val_df),
+        "test": len(test_df),
+    }
+    result["leakage"] = {
+        "group_col": group_col,
+        "leakage_groups_before": len(leakage_groups_before),
+        "leakage_groups_after": len(leakage_groups_after),
+        "dropped_train_rows": int(base["split_sizes"]["train"] - len(train_df)),
+    }
+    return result

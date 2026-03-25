@@ -1,9 +1,9 @@
 # 📋 Dolap Sale Prediction — Master TODO
 
-> **Son güncelleme:** 2026-03-19 (M3 Phase 9.1 RC1 QC ✅, RC3 relabeling ⏳)
+> **Son güncelleme:** 2026-03-24 (M3 Phase 9.1 RC1/RC2/RC3 ✅, RC4 ⏳)
 > **Branch:** `develop` | **Son commit:** `0d22d9c`
-> **Durum:** M1 ✅ | EDA ✅ | M2 🟡 scrape ✅ labeling bekliyor | **M3 Phase 8 ✅ + Phase 9.1 (RC1/RC2) ✅, RC3 ⏳**
-> **Öncelik:** Phase 9.1 Root Cause Plan (RC1-4) + resmi relabeling
+> **Durum:** M1 ✅ | EDA ✅ | M2 🟡 scrape ✅ labeling tamamlandı | **M3 Phase 8 ✅ + Phase 9.1 (RC1/RC2/RC3) ✅, RC4 ⏳**
+> **Öncelik:** Phase 9.1 Root Cause Plan (RC4) + EDA gate senkronizasyonu
 
 ---
 
@@ -653,7 +653,7 @@ Sources for sold_within_7_days:
 
 ---
 
-#### 🎯 **TRAINING READINESS REPORT (19 Mart 2026)**
+#### 🎯 **TRAINING READINESS REPORT (24 Mart 2026)**
 
 **Current State:** `data/interim/merged_data.csv` (single source CSV)
 
@@ -663,27 +663,29 @@ Sources for sold_within_7_days:
   Cohort count in file: 2 (20250712, 20260311)
 
 🎯 TARGET COVERAGE:
-  Labeled rows (sold_within_7_days non-null): 18
-  Unlabeled rows: 6041
+  Labeled rows (sold_within_7_days non-null): 1678
+  Unlabeled rows: 4381
 
 🎯 TARGET DISTRIBUTION (only labeled subset):
-  True  (Sold):  17 (94.44%)
-  False (Active): 1 (5.56%)
+  True  (Sold):   66 (3.93%)
+  False (Active): 1612 (96.07%)
 
-🔎 LABEL SOURCE BREAKDOWN:
-  official_labels_jsonl: 18
-  none (unlabeled):      6041
+⏱️ LABEL WINDOW QC:
+  valid_window_count: 18
+  early_window_count: 0
+  late_window_count: 6016
+  early_window_ratio: 0.0
 
 📉 COHORT BREAKDOWN:
   cohort_20250712: 43 row, 18 labeled
-  cohort_20260311: 6016 row, 0 labeled (⚠️ resmi label eksik)
+  cohort_20260311: 6016 row, 1660 labeled
 ```
 
 **🚨 INTERPRETATION (güncel):**
 - Canonical `merged_data.csv` artık resmi pipeline ile yeniden üretildi.
-- Ancak dataset training-ready değil: 6059 satırın yalnızca 18'i resmi label içeriyor.
-- En büyük blokaj `cohort_20260311` için resmi label dosyasının olmaması.
-- Bu nedenle model eğitimine geçmeden önce RC3 relabeling adımı zorunlu.
+- RC3 relabeling tamamlandı; `cohort_20260311` resmi label/snapshot akışı üretildi.
+- Dataset halen doğrudan training-ready değil: 4381 satır unlabeled, 6016 satır late-window (8+ gün) kontrolü içeriyor.
+- Bu nedenle model eğitiminde cohort/time filtreleri ve `unknown/error` yönetimi zorunlu.
 
 **Action Items (Blocking):**
 - [x] Target variable definition ✅
@@ -736,16 +738,16 @@ Sources for sold_within_7_days:
 - [x] Tek kaynak kuralı getir:
   - [x] `data/labels/cohort_*.jsonl` dışındaki label kaynakları geçersiz
   - [x] `merged_data.csv` üretimi sadece `src/dataset/merger.py` + `build_dataset.py` ile yapılacak
-- [ ] 20260311 için resmi labeling'i yeniden çalıştır:
-  - [ ] `python -m src.pipelines.label --cohort-id 20260311 --force --no-headless`
+- [x] 20260311 için resmi labeling'i yeniden çalıştır:
+  - [x] `python -m src.pipelines.label --cohort-id 20260311 --force --no-headless`
   - [x] `data/labels/cohort_20260311.jsonl` dosyasının varlığını doğrula
-  - [ ] `cohort_20260311_summary.yaml` üretimini zorunlu kıl
-- [ ] SQLite state tutarlılığı:
-  - [ ] `cohorts` tablosunda 20260311 kaydı `status='labeled'`
-  - [ ] `label_date`, `labeled_count` alanları dolu
+  - [x] `cohort_20260311_summary.yaml` üretimini zorunlu kıl
+- [x] SQLite state tutarlılığı:
+  - [x] `cohorts` tablosunda 20260311 kaydı `status='labeled'`
+  - [x] `label_date`, `labeled_count` alanları dolu
 
 **Definition of Done (RC3):**
-- [ ] 20260311 label dosyası + summary dosyası + DB state birbirini tutuyor
+- [x] 20260311 label dosyası + summary dosyası + DB state birbirini tutuyor
 - [ ] Repro komutu ile aynı sonuç tekrar üretilebiliyor
 
 **Root Cause 4 — Seller dağılım dengesizliği ve düşük satış oranı**

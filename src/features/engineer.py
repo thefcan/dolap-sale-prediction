@@ -113,6 +113,7 @@ class FeatureEngineer:
             "condition": "Bilinmiyor",
             "has_discount": False,
             "shipping_buyer_pays": False,
+            "seller_username": "unknown_seller",
             "photo_count": 0,
             "description_length": 0,
             "description_word_count": 0,
@@ -204,6 +205,19 @@ class FeatureEngineer:
 
         df["seller_rating_log"] = np.log1p(df["seller_rating_count"].clip(lower=0))
         df["seller_listing_log"] = np.log1p(df["seller_listing_count"].clip(lower=0))
+
+        seller_key = df["seller_username"].fillna("unknown_seller").astype(str)
+        seller_freq = seller_key.value_counts()
+        df["seller_listing_frequency"] = seller_key.map(seller_freq).astype(float)
+
+        freq_cap = float(df["seller_listing_frequency"].quantile(0.95))
+        freq_cap = max(freq_cap, 1.0)
+        df["seller_listing_frequency_capped"] = df["seller_listing_frequency"].clip(
+            lower=1.0,
+            upper=freq_cap,
+        )
+        df["seller_frequency_log"] = np.log1p(df["seller_listing_frequency_capped"])
+        df["seller_balance_weight"] = 1.0 / np.sqrt(df["seller_listing_frequency_capped"])
         return df
 
     @staticmethod
@@ -323,6 +337,8 @@ class FeatureEngineer:
             "seller_rating_log",
             "seller_listing_count",
             "seller_listing_log",
+            "seller_frequency_log",
+            "seller_balance_weight",
             "like_count",
             "comment_count",
             "listing_hour",
@@ -338,6 +354,7 @@ class FeatureEngineer:
             "desc_is_placeholder",
             "category",
             "brand_source",
+            "seller_username",
         ]
         existing = [c for c in columns if c in df.columns]
         out = df[existing].copy()
