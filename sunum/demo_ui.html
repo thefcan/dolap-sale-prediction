@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Dolap Sale Predictor — Live Demo</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0A0E1A;--card:#111827;--border:#1F2937;--primary:#6366F1;--accent:#8B5CF6;--green:#10B981;--red:#EF4444;--text:#F9FAFB;--muted:#6B7280}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+header{background:linear-gradient(135deg,#6366F1,#8B5CF6);padding:20px 32px;display:flex;align-items:center;gap:16px;box-shadow:0 4px 24px rgba(99,102,241,.4)}
+header h1{font-size:20px;font-weight:700}header p{font-size:12px;opacity:.8;margin-top:2px}
+.badge{margin-left:auto;background:rgba(255,255,255,.2);padding:6px 14px;border-radius:20px;font-size:11px;font-weight:600}
+.container{display:grid;grid-template-columns:440px 1fr;gap:20px;padding:24px;max-width:1280px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px}
+.card h2{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:16px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.form-group label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:500}
+.form-group input,.form-group select{width:100%;background:#1F2937;border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;font-family:'Inter',sans-serif;transition:border .2s}
+.form-group input:focus,.form-group select:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px rgba(99,102,241,.15)}
+.sec{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--primary);margin:16px 0 8px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+#predict-btn{width:100%;margin-top:18px;padding:14px;background:linear-gradient(135deg,#6366F1,#8B5CF6);border:none;border-radius:10px;color:#fff;font-size:15px;font-weight:700;cursor:pointer;transition:transform .15s,box-shadow .15s}
+#predict-btn:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(99,102,241,.5)}
+#result-box{display:none;margin-top:16px;border-radius:12px;padding:16px;text-align:center}
+#result-box.sold{background:rgba(16,185,129,.12);border:2px solid var(--green)}
+#result-box.ns{background:rgba(239,68,68,.1);border:2px solid var(--red)}
+#result-label{font-size:20px;font-weight:900;margin-bottom:6px}
+.prob-bar-wrap{margin:12px 0 4px;background:#1F2937;border-radius:8px;height:10px;overflow:hidden}
+#prob-bar{height:100%;border-radius:8px;transition:width .6s ease}
+#result-sub{font-size:12px;color:var(--muted)}
+.metrics-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.met{background:#1F2937;border-radius:10px;padding:12px;text-align:center}
+.met .val{font-size:20px;font-weight:800;color:var(--primary)}
+.met .lbl{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+.feat-row{display:flex;align-items:center;gap:8px;margin:7px 0}
+.fn{width:170px;font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fb{flex:1;background:#1F2937;border-radius:4px;height:7px;overflow:hidden}
+.fb-fill{height:100%;border-radius:4px;background:linear-gradient(90deg,var(--primary),var(--accent))}
+.fv{font-size:11px;color:var(--muted);width:36px;text-align:right}
+.hist{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:#1F2937;border-radius:8px;margin-bottom:7px;font-size:12px}
+.hb{padding:3px 10px;border-radius:10px;font-weight:700;font-size:11px}
+.hb.s{background:rgba(16,185,129,.2);color:var(--green)}
+.hb.n{background:rgba(239,68,68,.15);color:var(--red)}
+.scen-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.scen-btn{padding:10px;background:#1F2937;border:1px solid var(--border);border-radius:8px;color:var(--text);cursor:pointer;font-size:12px;font-weight:600}
+.scen-btn:hover{background:#374151}
+#status-dot{width:8px;height:8px;border-radius:50%;background:var(--green);display:inline-block;margin-right:6px}
+</style>
+</head>
+<body>
+<header>
+  <div style="font-size:26px">🛍️</div>
+  <div>
+    <h1>Dolap Sale Prediction — Live Demo</h1>
+    <p id="header-sub">XGBoost · Loading…</p>
+  </div>
+  <div class="badge">CENG · Practical Data Science 2025–26</div>
+</header>
+
+<div class="container">
+  <div>
+    <div class="card">
+      <h2>📝 Listing Features</h2>
+
+      <div class="sec">❤️ Engagement</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Like Count</label>
+          <input type="number" id="like_count" value="2" min="0"/>
+        </div>
+        <div class="form-group">
+          <label>Engagement Score</label>
+          <input type="number" id="engagement_score" value="4" min="0" step="0.1"/>
+        </div>
+      </div>
+
+      <div class="sec">💰 Price & Market</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Price (TRY) → price_log auto-calc</label>
+          <input type="number" id="price_raw" value="150" min="1" oninput="calcLog()"/>
+        </div>
+        <div class="form-group">
+          <label>Price Percentile in Category (0–1)</label>
+          <input type="number" id="price_pctile_cat" value="0.40" step="0.05" min="0" max="1"/>
+        </div>
+        <div class="form-group">
+          <label>Fraction Cheaper in Category (0–1)</label>
+          <input type="number" id="n_cheaper_in_cat" value="0.60" step="0.05" min="0" max="1"/>
+        </div>
+        <div class="form-group">
+          <label>Price vs Brand Median</label>
+          <input type="number" id="price_vs_brand_median" value="-0.1" step="0.05"/>
+        </div>
+      </div>
+
+      <div class="sec">👗 Item & Seller</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Brand Tier (0=Unknown … 5=Luxury)</label>
+          <select id="brand_tier">
+            <option value="0">0 — Unknown/Generic (~60%)</option>
+            <option value="1">1 — Small Boutique</option>
+            <option value="2" selected>2 — Turkish Mass (Koton, LC…)</option>
+            <option value="3">3 — International Mid (H&M…)</option>
+            <option value="4">4 — International Premium (Zara…)</option>
+            <option value="5">5 — Luxury (İpekyol, Lacoste…)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Condition Score</label>
+          <select id="condition_score">
+            <option value="4">4 — New & Tagged</option>
+            <option value="3">3 — New</option>
+            <option value="2" selected>2 — Lightly Used</option>
+            <option value="1">1 — Used</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Photo Count</label>
+          <input type="number" id="photo_count" value="4" min="1" max="20"/>
+        </div>
+        <div class="form-group">
+          <label>Seller Experience = log(1+ratings)</label>
+          <input type="number" id="seller_exp_log" value="2.4" step="0.1" min="0"/>
+        </div>
+      </div>
+
+      <div class="sec">📋 Listing Quality</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Listing Quality Score (0–7)</label>
+          <input type="range" id="listing_quality_score" value="4" min="0" max="7" step="1"
+                 oninput="document.getElementById('lqv').textContent=this.value"/>
+          <span style="font-size:11px;color:var(--muted)">Value: <b id="lqv">4</b>/7</span>
+        </div>
+        <div class="form-group">
+          <label>Free Shipping</label>
+          <select id="has_free_shipping">
+            <option value="0" selected>0 — Buyer Pays</option>
+            <option value="1">1 — Free Shipping</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- hidden price_log -->
+      <input type="hidden" id="price_log" value="5.017"/>
+
+      <button id="predict-btn" onclick="predict()">🔮 Predict Sale Probability</button>
+
+      <div id="result-box">
+        <div id="result-label"></div>
+        <div class="prob-bar-wrap"><div id="prob-bar" style="width:0%"></div></div>
+        <div id="result-sub"></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px">
+
+    <div class="card">
+      <h2>📊 Model Performance <span id="status-dot"></span></h2>
+      <div class="metrics-row">
+        <div class="met"><div class="val" id="m1v">0.797</div><div class="lbl" id="m1l">ROC-AUC</div></div>
+        <div class="met"><div class="val" id="m2v">0.247</div><div class="lbl" id="m2l">Threshold</div></div>
+        <div class="met"><div class="val">12</div><div class="lbl">SHAP Features</div></div>
+      </div>
+      <p style="font-size:11px;color:var(--muted)" id="training-note">XGBoost · SMOTE-balanced · 6,007 Dolap listings</p>
+    </div>
+
+    <div class="card">
+      <h2>🔍 Feature Importances (XGBoost gain)</h2>
+      <div id="feat-container"><p style="color:var(--muted);font-size:13px">Run a prediction to see importances.</p></div>
+    </div>
+
+    <div class="card">
+      <h2>⚡ Quick Scenarios</h2>
+      <div class="scen-grid">
+        <button class="scen-btn" onclick="scenario('premium')">🌟 Premium Brand, Cheap</button>
+        <button class="scen-btn" onclick="scenario('new')">🏷️ New & Tagged, Liked</button>
+        <button class="scen-btn" onclick="scenario('over')">💸 Overpriced, No Likes</button>
+        <button class="scen-btn" onclick="scenario('viral')">🔥 Viral: Many Likes</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>📜 Prediction History</h2>
+      <div id="hist-box"><p style="color:var(--muted);font-size:13px">No predictions yet.</p></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const SCENARIOS = {
+  premium:{like_count:5,engagement_score:13,price_pctile_cat:0.20,n_cheaper_in_cat:0.80,brand_tier:4,condition_score:3,seller_exp_log:3.2,listing_quality_score:6,has_free_shipping:1,price_raw:120,price_vs_brand_median:-0.30,photo_count:6},
+  new:    {like_count:8,engagement_score:22,price_pctile_cat:0.35,n_cheaper_in_cat:0.65,brand_tier:3,condition_score:4,seller_exp_log:2.8,listing_quality_score:7,has_free_shipping:0,price_raw:180,price_vs_brand_median:-0.10,photo_count:7},
+  over:   {like_count:0,engagement_score:0, price_pctile_cat:0.92,n_cheaper_in_cat:0.08,brand_tier:1,condition_score:1,seller_exp_log:1.1,listing_quality_score:1,has_free_shipping:0,price_raw:650,price_vs_brand_median:0.50, photo_count:2},
+  viral:  {like_count:28,engagement_score:77,price_pctile_cat:0.40,n_cheaper_in_cat:0.60,brand_tier:4,condition_score:3,seller_exp_log:3.7,listing_quality_score:6,has_free_shipping:1,price_raw:220,price_vs_brand_median:-0.20,photo_count:8},
+};
+
+function calcLog(){
+  const p = parseFloat(document.getElementById('price_raw').value)||1;
+  document.getElementById('price_log').value = Math.log(1+p).toFixed(4);
+}
+calcLog();
+
+function scenario(name){
+  const s=SCENARIOS[name];
+  for(const[k,v] of Object.entries(s)){
+    const el=document.getElementById(k);
+    if(el){el.value=v; if(k==='listing_quality_score')document.getElementById('lqv').textContent=v;}
+  }
+  calcLog(); predict();
+}
+
+const FEAT_IDS=['like_count','engagement_score','price_pctile_cat','n_cheaper_in_cat',
+                'condition_score','brand_tier','seller_exp_log','listing_quality_score',
+                'has_free_shipping','price_log','photo_count','price_vs_brand_median'];
+
+async function predict(){
+  const features={};
+  for(const id of FEAT_IDS){
+    const el=document.getElementById(id);
+    if(el) features[id]=parseFloat(el.value)||0;
+  }
+  try{
+    const r=await fetch('/predict',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({features})});
+    const d=await r.json();
+    if(d.error){alert('Error: '+d.error);return;}
+    showResult(d,features);
+    addHistory(d,features);
+  }catch(e){alert('Cannot connect to server: '+e.message);}
+}
+
+function showResult(d,features){
+  const box=document.getElementById('result-box');
+  const pct=Math.round((d.confidence||0)*100);
+  const sold=d.predicted_class_int===1;
+  box.className=sold?'sold':'ns';
+  box.style.display='block';
+  document.getElementById('result-label').textContent=d.predicted_class;
+  document.getElementById('prob-bar').style.width=pct+'%';
+  document.getElementById('prob-bar').style.background=sold
+    ?'linear-gradient(90deg,#6366F1,#10B981)'
+    :'linear-gradient(90deg,#6366F1,#EF4444)';
+  document.getElementById('result-sub').innerHTML=
+    `Sale probability: <b>${d.sale_probability_pct}%</b> &nbsp;|&nbsp; Threshold: ${d.threshold_used}`;
+
+  if(d.feature_importances){
+    const items=Object.entries(d.feature_importances).sort((a,b)=>b[1]-a[1]);
+    const max=items[0][1];
+    document.getElementById('feat-container').innerHTML=items.map(([k,v])=>`
+      <div class="feat-row">
+        <div class="fn" title="${k}">${k}</div>
+        <div class="fb"><div class="fb-fill" style="width:${(v/max*100).toFixed(0)}%"></div></div>
+        <div class="fv">${(v*100).toFixed(1)}%</div>
+      </div>`).join('');
+  }
+}
+
+let hc=0;
+function addHistory(d,features){
+  const box=document.getElementById('hist-box');
+  if(hc===0)box.innerHTML='';
+  hc++;
+  const sold=d.predicted_class_int===1;
+  const likes=features.like_count||0;
+  const tier=features.brand_tier||0;
+  box.insertAdjacentHTML('afterbegin',`
+    <div class="hist">
+      <span style="color:var(--muted)">#${hc}</span>
+      <span>Tier ${tier} · ❤️${likes} · ${d.sale_probability_pct}%</span>
+      <span class="hb ${sold?'s':'n'}">${sold?'SOLD':'NOT SOLD'}</span>
+    </div>`);
+}
+
+// Load config on startup
+window.onload=async()=>{
+  try{
+    const r=await fetch('/config');
+    const c=await r.json();
+    if(c.model_info){
+      document.getElementById('m1v').textContent=c.model_info.metric1_value||'—';
+      document.getElementById('m1l').textContent=c.model_info.metric1_label||'AUC';
+      document.getElementById('m2v').textContent=c.model_info.metric2_value||'—';
+      document.getElementById('m2l').textContent=c.model_info.metric2_label||'';
+      document.getElementById('training-note').textContent=c.model_info.training_note||'';
+      document.getElementById('header-sub').textContent=
+        `${c.model_info.model_name} · AUC = ${c.model_info.metric1_value}`;
+    }
+    document.getElementById('status-dot').style.background=
+      c.model_ready?'#10B981':'#EF4444';
+  }catch(e){
+    document.getElementById('status-dot').style.background='#EF4444';
+  }
+};
+</script>
+</body>
+</html>
