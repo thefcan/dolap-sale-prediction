@@ -1,0 +1,84 @@
+{
+  "_meta": {
+    "description": "Ablation study + bootstrap CI numbers as reported to the professor. Source of truth for the Tablo 7 + Tablo 8 numbers in methodology_addendum.md and article_draft_en.md.",
+    "dataset": "data/processed/model_ready_v3.csv",
+    "rows": 6007,
+    "test_rows": 1202,
+    "test_sold": 70,
+    "model": "XGBoost",
+    "hyperparameters": {
+      "n_estimators": 300,
+      "learning_rate": 0.05,
+      "max_depth": 5,
+      "subsample": 0.8,
+      "eval_metric": "logloss",
+      "random_state": 42
+    },
+    "split": "stratified random shuffle, test_size=0.20, random_state=42",
+    "smote": "applied to train fold only",
+    "threshold": 0.5,
+    "bootstrap_iterations": 1000,
+    "bootstrap_method": "test-set resampling with replacement, [2.5%, 97.5%] percentile",
+    "frozen_for": "M7.6.6.3 (Section 16 inline display)"
+  },
+  "bootstrap_ci_xgboost": {
+    "mean": 0.8150,
+    "lower": 0.7613,
+    "upper": 0.8722,
+    "ci_width": 0.1109
+  },
+  "ablation": {
+    "full": {
+      "label": "FULL (reference)",
+      "n_features": 60,
+      "Accuracy": 0.9409,
+      "Precision": 0.4815,
+      "Recall": 0.1857,
+      "F1": 0.2680,
+      "AUC": 0.8150,
+      "AUC_CI_low": 0.7613,
+      "AUC_CI_high": 0.8722
+    },
+    "no_engagement": {
+      "label": "NO_ENGAGEMENT",
+      "n_features": 49,
+      "Accuracy": 0.9401,
+      "Precision": 0.4583,
+      "Recall": 0.1571,
+      "F1": 0.2340,
+      "AUC": 0.8097,
+      "AUC_CI_low": 0.7531,
+      "AUC_CI_high": 0.8654,
+      "delta_AUC_vs_full": -0.0053
+    },
+    "static_only": {
+      "label": "STATIC_ONLY (cold-start)",
+      "n_features": 26,
+      "Accuracy": 0.9326,
+      "Precision": 0.2381,
+      "Recall": 0.0714,
+      "F1": 0.1099,
+      "AUC": 0.7491,
+      "AUC_CI_low": 0.6883,
+      "AUC_CI_high": 0.8079,
+      "delta_AUC_vs_full": -0.0659
+    }
+  },
+  "tablo_7_six_models": {
+    "XGBoost":            {"Accuracy": 0.9409, "Precision": 0.4815, "Recall": 0.1857, "F1": 0.2680, "AUC": 0.8150, "AUC_CI": [0.7613, 0.8722]},
+    "LightGBM":           {"Accuracy": 0.9434, "Precision": 0.5333, "Recall": 0.2286, "F1": 0.3200, "AUC": 0.7798, "AUC_CI": [0.7225, 0.8426]},
+    "Random Forest":      {"Accuracy": 0.9351, "Precision": 0.3462, "Recall": 0.1286, "F1": 0.1875, "AUC": 0.7604, "AUC_CI": [0.7022, 0.8207]},
+    "Logistic Regression":{"Accuracy": 0.7313, "Precision": 0.1224, "Recall": 0.5857, "F1": 0.2025, "AUC": 0.7206, "AUC_CI": [0.6613, 0.7864]},
+    "Decision Tree":      {"Accuracy": 0.8344, "Precision": 0.1692, "Recall": 0.4714, "F1": 0.2491, "AUC": 0.7116, "AUC_CI": [0.6432, 0.7841]},
+    "KNN":                {"Accuracy": 0.7288, "Precision": 0.1168, "Recall": 0.5571, "F1": 0.1931, "AUC": 0.6964, "AUC_CI": [0.6364, 0.7612]}
+  },
+  "robustness_check_rc4": {
+    "_meta": "Canonical pipeline (engineer.py, 26 features) — supplementary, NOT the headline. Reported in methodology_addendum.md Section 6 / Bölüm 8.Z.",
+    "protocol_A_random_split": {"AUC": 0.7755, "AUC_CI": [0.7116, 0.8348], "F1": 0.4421},
+    "protocol_B_group_aware_split": {"AUC": 0.6832, "AUC_CI": [0.6079, 0.7544], "F1": 0.0000},
+    "delta_AUC": -0.0922,
+    "leakage_groups_before": 1,
+    "leakage_groups_after": 0,
+    "dropped_train_rows": 275
+  }
+}

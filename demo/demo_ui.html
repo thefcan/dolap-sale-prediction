@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>Dolap 7-Day Sale Prediction — Live Demo</title>
+  <style>
+    /* ─── Dolap-inspired palette (pink/magenta + warm orange) ─────────── */
+    :root {
+      --bg:           #FFF5F8;
+      --bg-soft:      #FFEEF3;
+      --card:         #FFFFFF;
+      --card-shadow:  0 1px 3px rgba(255, 61, 127, 0.08), 0 4px 12px rgba(214, 51, 108, 0.06);
+      --border:       #FFD6E1;
+      --border-soft:  #FFE7EE;
+      --text:         #1A1A2E;
+      --muted:        #6B7280;
+      --primary:      #FF3D7F;
+      --primary-dark: #D6336C;
+      --primary-soft: #FFE0EC;
+      --accent:       #FF6B35;
+      --accent-soft:  #FFE7DC;
+      --green:        #16A34A;
+      --green-soft:   #DCFCE7;
+      --red:          #DC2626;
+      --red-soft:     #FEE2E2;
+      --yellow:       #EAB308;
+      --yellow-soft:  #FEF9C3;
+      --blue:         #2563EB;
+      --gradient:     linear-gradient(135deg, #FF3D7F 0%, #FF6B35 100%);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    body { padding: 24px; }
+    .wrap { max-width: 1320px; margin: 0 auto; }
+
+    /* ─── Header ──────────────────────────────────────────────────────── */
+    header {
+      margin-bottom: 24px;
+      padding: 20px 24px;
+      background: var(--gradient);
+      border-radius: 12px;
+      color: white;
+      box-shadow: 0 4px 16px rgba(255, 61, 127, 0.25);
+    }
+    header h1 {
+      margin: 0 0 6px;
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+    header h1 .pill {
+      display: inline-block;
+      background: rgba(255, 255, 255, 0.18);
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      vertical-align: middle;
+      margin-left: 8px;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
+    header p {
+      margin: 0;
+      font-size: 13px;
+      opacity: 0.92;
+      font-weight: 500;
+    }
+
+    /* ─── Layout ──────────────────────────────────────────────────────── */
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      gap: 20px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: var(--card-shadow);
+    }
+    .card h2 {
+      margin: 0 0 14px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    /* ─── Preset groups ───────────────────────────────────────────────── */
+    .preset-info {
+      font-size: 12px;
+      color: var(--muted);
+      padding: 8px 12px;
+      background: var(--bg-soft);
+      border-radius: 6px;
+      margin-bottom: 12px;
+      min-height: 16px;
+    }
+    .preset-info b { color: var(--primary-dark); }
+    .preset-info .truth-sold     { color: var(--green); font-weight: 600; }
+    .preset-info .truth-not-sold { color: var(--red);   font-weight: 600; }
+
+    .preset-group {
+      margin-bottom: 10px;
+    }
+    .preset-group-title {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .preset-group-title::before {
+      content: '';
+      width: 8px; height: 8px; border-radius: 2px;
+      background: var(--primary);
+    }
+    .preset-group[data-group="strong"]   .preset-group-title::before { background: var(--green); }
+    .preset-group[data-group="pricing"]  .preset-group-title::before { background: var(--primary); }
+    .preset-group[data-group="edge"]     .preset-group-title::before { background: var(--accent); }
+    .preset-group[data-group="errors"]   .preset-group-title::before { background: var(--red); }
+
+    .preset-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .preset-btn {
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      color: var(--text);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .preset-btn:hover {
+      border-color: var(--primary);
+      background: var(--primary-soft);
+    }
+    .preset-btn.active {
+      background: var(--gradient);
+      color: white;
+      border-color: var(--primary-dark);
+      box-shadow: 0 2px 6px rgba(255, 61, 127, 0.3);
+    }
+
+    /* ─── Filter row ──────────────────────────────────────────────────── */
+    .filter-row {
+      display: flex;
+      gap: 8px;
+      margin: 14px 0 10px;
+    }
+    .filter-row input {
+      flex: 1;
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      transition: border-color 0.15s ease;
+    }
+    .filter-row input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-soft);
+    }
+    .reset-btn {
+      cursor: pointer;
+      border: 1.5px solid var(--border);
+      background: var(--card);
+      color: var(--muted);
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .reset-btn:hover { background: var(--bg-soft); color: var(--text); }
+
+    /* ─── Feature inputs grid ─────────────────────────────────────────── */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 8px;
+      max-height: 60vh;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+    .features-grid::-webkit-scrollbar { width: 6px; }
+    .features-grid::-webkit-scrollbar-thumb {
+      background: var(--border); border-radius: 3px;
+    }
+    .features-grid::-webkit-scrollbar-thumb:hover { background: var(--primary-soft); }
+    .feat {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .feat label {
+      font-size: 10px;
+      color: var(--muted);
+      font-family: "SF Mono", "Consolas", monospace;
+      font-weight: 500;
+    }
+    .feat input {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 5px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-family: "SF Mono", "Consolas", monospace;
+      transition: border-color 0.15s ease;
+    }
+    .feat input:focus {
+      outline: none;
+      border-color: var(--primary);
+      background: var(--bg-soft);
+    }
+
+    /* ─── Result panel ────────────────────────────────────────────────── */
+    .result {
+      text-align: center;
+      padding: 16px 8px;
+    }
+    .result .label {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 4px;
+      letter-spacing: 0.3px;
+    }
+    .result .label.sold {
+      color: var(--green);
+      background: var(--green-soft);
+      padding: 4px 14px;
+      border-radius: 999px;
+      display: inline-block;
+    }
+    .result .label.notsold {
+      color: var(--red);
+      background: var(--red-soft);
+      padding: 4px 14px;
+      border-radius: 999px;
+      display: inline-block;
+    }
+    .result .proba {
+      font-size: 44px;
+      font-weight: 800;
+      font-family: "SF Mono", monospace;
+      margin: 14px 0 6px;
+      background: var(--gradient);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -1.5px;
+    }
+    .result .proba-sub {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* Gauge */
+    .gauge-wrap {
+      margin-top: 18px;
+    }
+    .gauge {
+      height: 12px;
+      background: var(--bg-soft);
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid var(--border-soft);
+    }
+    .gauge-fill {
+      height: 100%;
+      background: var(--gradient);
+      transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .gauge-marker {
+      position: absolute;
+      top: -4px;
+      width: 3px;
+      height: 18px;
+      background: var(--text);
+      box-shadow: 0 0 0 1px white;
+      border-radius: 1px;
+      transition: left 0.3s ease;
+    }
+    .gauge-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 4px;
+      font-family: "SF Mono", monospace;
+    }
+
+    /* Threshold */
+    .threshold-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 14px;
+      padding: 10px;
+      background: var(--bg-soft);
+      border-radius: 6px;
+    }
+    .threshold-row .tau {
+      font-family: "SF Mono", monospace;
+      font-weight: 700;
+      color: var(--primary);
+      font-size: 13px;
+    }
+    input[type="range"] {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 6px;
+      background: var(--border);
+      border-radius: 3px;
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      background: var(--primary);
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 1px 4px rgba(255,61,127,0.4);
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 16px; height: 16px;
+      background: var(--primary);
+      border-radius: 50%;
+      cursor: pointer;
+      border: none;
+    }
+    .threshold-val {
+      font-family: "SF Mono", monospace;
+      min-width: 44px;
+      text-align: right;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .threshold-hints {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 4px;
+      padding: 0 4px;
+    }
+    .threshold-hints .hint-pill {
+      background: var(--accent-soft);
+      color: var(--accent);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .threshold-hints .hint-pill:hover { filter: brightness(0.95); }
+
+    /* Metrics card */
+    .metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      margin-top: 16px;
+    }
+    .metric {
+      background: var(--bg-soft);
+      padding: 8px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border-soft);
+    }
+    .metric .k { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; }
+    .metric .v { font-family: "SF Mono", monospace; font-weight: 700; font-size: 13px; color: var(--text); margin-top: 2px; }
+
+    /* Predict button */
+    .predict-btn {
+      cursor: pointer;
+      border: none;
+      background: var(--gradient);
+      color: white;
+      padding: 12px 32px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      width: 100%;
+      box-shadow: 0 2px 8px rgba(255, 61, 127, 0.3);
+      transition: all 0.15s ease;
+      margin-top: 16px;
+    }
+    .predict-btn:hover {
+      box-shadow: 0 4px 14px rgba(255, 61, 127, 0.45);
+      transform: translateY(-1px);
+    }
+    .predict-btn:active { transform: translateY(0); }
+
+    @media (max-width: 1000px) {
+      .grid { grid-template-columns: 1fr; }
+      header h1 { font-size: 18px; }
+      .result .proba { font-size: 36px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Dolap 7-Day Sale Prediction <span class="pill">Live Demo</span></h1>
+      <p id="header-sub">Loading model schema…</p>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <h2>📋 Senaryolar</h2>
+        <div id="presets-container"></div>
+        <div class="preset-info" id="preset-info">Bir senaryo seç ya da feature'ları elle değiştir.</div>
+
+        <div class="filter-row">
+          <input id="filter" placeholder="🔍 Feature ara (price, brand, photo, engagement…)">
+          <button class="reset-btn" id="reset">Defaults</button>
+        </div>
+        <div id="features" class="features-grid"></div>
+      </div>
+
+      <div class="card">
+        <h2>🎯 Tahmin</h2>
+        <div class="result">
+          <div id="result-label" class="label">—</div>
+          <div id="result-proba" class="proba">—</div>
+          <div id="result-proba-sub" class="proba-sub">P(sold within 7 days)</div>
+
+          <div class="gauge-wrap">
+            <div class="gauge">
+              <div id="gauge-fill" class="gauge-fill" style="width: 0%"></div>
+              <div id="gauge-marker" class="gauge-marker" style="left: 50%"></div>
+            </div>
+            <div class="gauge-labels">
+              <span>0%</span><span>50%</span><span>100%</span>
+            </div>
+          </div>
+
+          <div class="threshold-row">
+            <span class="tau">τ</span>
+            <input type="range" id="threshold" min="0" max="1" step="0.01" value="0.5">
+            <span id="threshold-val" class="threshold-val">0.50</span>
+          </div>
+          <div class="threshold-hints">
+            <span class="hint-pill" data-tau="0.5">default 0.50</span>
+            <span class="hint-pill" data-tau="0.247">F1-optimal 0.247</span>
+          </div>
+
+          <div class="metrics" id="metrics"></div>
+        </div>
+        <button class="predict-btn" id="predict">Predict</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+const API_BASE = window.location.origin || 'http://127.0.0.1:5000';
+let SCHEMA = null;
+
+const GROUP_LABELS = {
+  strong:  '🟢 Güçlü Tahminler',
+  pricing: '🔥 Fiyat & Marka Hikayeleri',
+  edge:    '🟧 Edge Cases',
+  errors:  '🔴 Model Hataları (Q&A için)',
+};
+const GROUP_ORDER = ['strong', 'pricing', 'edge', 'errors'];
+
+async function loadSchema() {
+  const res = await fetch(API_BASE + '/api/schema');
+  SCHEMA = await res.json();
+  document.getElementById('header-sub').textContent =
+    `${SCHEMA.feature_count} features  ·  XGBoost Test AUC = ${SCHEMA.headline_metrics.test_roc_auc.toFixed(4)} ` +
+    `[95% CI: ${SCHEMA.headline_metrics.test_roc_auc_ci.map(x=>x.toFixed(3)).join(', ')}]  ·  ` +
+    `${SCHEMA.presets ? SCHEMA.presets.length : 0} senaryo hazır`;
+  buildInputs();
+  buildMetrics();
+  buildPresets();
+  document.getElementById('threshold').value = SCHEMA.threshold_default;
+  document.getElementById('threshold-val').textContent = SCHEMA.threshold_default.toFixed(2);
+}
+
+function buildPresets() {
+  const presets = SCHEMA.presets || [];
+  const container = document.getElementById('presets-container');
+  container.innerHTML = '';
+  // Group presets
+  const grouped = {};
+  for (const p of presets) {
+    const g = p.group || 'other';
+    if (!grouped[g]) grouped[g] = [];
+    grouped[g].push(p);
+  }
+  for (const groupKey of GROUP_ORDER) {
+    if (!grouped[groupKey]) continue;
+    const groupDiv = document.createElement('div');
+    groupDiv.className = 'preset-group';
+    groupDiv.dataset.group = groupKey;
+    const titleDiv = document.createElement('div');
+    titleDiv.className = 'preset-group-title';
+    titleDiv.textContent = GROUP_LABELS[groupKey] || groupKey;
+    groupDiv.appendChild(titleDiv);
+    const rowDiv = document.createElement('div');
+    rowDiv.className = 'preset-row';
+    for (const p of grouped[groupKey]) {
+      const btn = document.createElement('button');
+      btn.className = 'preset-btn';
+      btn.textContent = p.label;
+      btn.dataset.id = p.id;
+      btn.title = p.description;
+      btn.addEventListener('click', () => applyPreset(p));
+      rowDiv.appendChild(btn);
+    }
+    groupDiv.appendChild(rowDiv);
+    container.appendChild(groupDiv);
+  }
+}
+
+function buildInputs() {
+  const grid = document.getElementById('features');
+  grid.innerHTML = '';
+  for (const feat of SCHEMA.features) {
+    const def = SCHEMA.defaults[feat];
+    const range = SCHEMA.ranges[feat] || {min: 0, max: 1};
+    const div = document.createElement('div');
+    div.className = 'feat';
+    div.innerHTML = `
+      <label title="${feat} [${range.min} … ${range.max}]">${feat}</label>
+      <input type="number" step="any" data-feat="${feat}" value="${def}"
+             title="default: ${def}, range: [${range.min}, ${range.max}]">
+    `;
+    grid.appendChild(div);
+  }
+}
+
+function buildMetrics() {
+  const m = SCHEMA.headline_metrics;
+  document.getElementById('metrics').innerHTML = `
+    <div class="metric"><div class="k">Test AUC</div><div class="v">${m.test_roc_auc.toFixed(4)}</div></div>
+    <div class="metric"><div class="k">CV AUC</div><div class="v">${m.cv_roc_auc_mean.toFixed(4)} ± ${m.cv_roc_auc_std.toFixed(3)}</div></div>
+    <div class="metric"><div class="k">F1 default</div><div class="v">${m.test_f1_default.toFixed(4)}</div></div>
+    <div class="metric"><div class="k">F1 optimal τ</div><div class="v">${m.test_f1_optimal.toFixed(4)}</div></div>
+    <div class="metric"><div class="k">Group-aware AUC</div><div class="v">${m.robustness_group_aware_auc.toFixed(4)}</div></div>
+    <div class="metric"><div class="k">CI width</div><div class="v">${(m.test_roc_auc_ci[1] - m.test_roc_auc_ci[0]).toFixed(3)}</div></div>
+  `;
+}
+
+function applyPreset(p) {
+  document.querySelectorAll('.preset-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.id === p.id);
+  });
+  document.querySelectorAll('[data-feat]').forEach(input => {
+    const feat = input.dataset.feat;
+    if (feat in p.features) input.value = p.features[feat];
+  });
+  const truthClass = p.true_label === 1 ? 'truth-sold' : 'truth-not-sold';
+  const truthTxt   = p.true_label === 1 ? '✅ satıldı (gerçek)' : '❌ satılmadı (gerçek)';
+  document.getElementById('preset-info').innerHTML =
+    `<b>${p.label}</b> — ${p.description} · <span class="${truthClass}">${truthTxt}</span>`;
+  predict();
+}
+
+async function predict() {
+  const features = {};
+  document.querySelectorAll('[data-feat]').forEach(i => {
+    const v = i.value;
+    if (v !== '' && v !== null) features[i.dataset.feat] = parseFloat(v);
+  });
+  const threshold = parseFloat(document.getElementById('threshold').value);
+  const res = await fetch(API_BASE + '/api/predict', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({features, threshold}),
+  });
+  const out = await res.json();
+  renderResult(out);
+}
+
+function renderResult(out) {
+  const proba = out.probability_sold;
+  const label = document.getElementById('result-label');
+  label.textContent = out.predicted_text;
+  label.className = 'label ' + (out.predicted_label === 1 ? 'sold' : 'notsold');
+  document.getElementById('result-proba').textContent = `${(proba * 100).toFixed(2)}%`;
+  document.getElementById('gauge-fill').style.width = `${proba * 100}%`;
+  document.getElementById('gauge-marker').style.left = `${out.threshold_used * 100}%`;
+}
+
+document.getElementById('predict').addEventListener('click', predict);
+document.getElementById('reset').addEventListener('click', () => {
+  document.querySelectorAll('[data-feat]').forEach(i => {
+    i.value = SCHEMA.defaults[i.dataset.feat];
+  });
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('preset-info').innerHTML = 'Defaults yüklendi (medyan ilan).';
+});
+document.getElementById('threshold').addEventListener('input', (e) => {
+  const v = parseFloat(e.target.value);
+  document.getElementById('threshold-val').textContent = v.toFixed(2);
+  // also reposition the gauge marker live
+  document.getElementById('gauge-marker').style.left = `${v * 100}%`;
+});
+document.querySelectorAll('.hint-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    const tau = parseFloat(pill.dataset.tau);
+    document.getElementById('threshold').value = tau;
+    document.getElementById('threshold-val').textContent = tau.toFixed(2);
+    document.getElementById('gauge-marker').style.left = `${tau * 100}%`;
+    predict();
+  });
+});
+document.getElementById('filter').addEventListener('input', (e) => {
+  const q = e.target.value.toLowerCase();
+  document.querySelectorAll('#features .feat').forEach(f => {
+    const name = f.querySelector('label').textContent.toLowerCase();
+    f.style.display = name.includes(q) ? '' : 'none';
+  });
+});
+
+loadSchema().catch(err => {
+  document.getElementById('header-sub').textContent =
+    `Could not load schema. Is the Flask server running? (${err})`;
+});
+</script>
+</body>
+</html>

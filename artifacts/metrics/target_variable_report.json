@@ -1,0 +1,27 @@
+{
+  "total_rows": 6059,
+  "cohort_count": 2,
+  "target_non_null": 5472,
+  "target_null": 587,
+  "target_distribution_non_null": {
+    "0.0": 5125,
+    "1.0": 347
+  },
+  "window_non_null": 6034,
+  "valid_window_count": 18,
+  "early_window_count": 0,
+  "late_window_count": 6016,
+  "early_window_ratio": 0.0,
+  "cohort_stats": {
+    "20250712": {
+      "rows": 43,
+      "target_non_null": 41,
+      "target_null": 2
+    },
+    "20260311": {
+      "rows": 6016,
+      "target_non_null": 5431,
+      "target_null": 585
+    }
+  }
+}
