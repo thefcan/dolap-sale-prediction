@@ -1,0 +1,14 @@
+{
+  "like_count": 4.0,
+  "engagement_score": 10.0,
+  "price_pctile_cat": 0.506951596292482,
+  "n_cheaper_in_cat": 0.4649845520082389,
+  "condition_score": 2.0,
+  "brand_tier": 0.0,
+  "seller_exp_log": 5.7899601708972535,
+  "listing_quality_score": 4.0,
+  "has_free_shipping": 1.0,
+  "price_log": 5.638354669333745,
+  "photo_count": 6.0,
+  "price_vs_brand_median": 0.0
+}

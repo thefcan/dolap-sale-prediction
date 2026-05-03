@@ -1,0 +1,37 @@
+{
+  "dataset": "data/processed/engineered_features.parquet",
+  "rows_used": 5472,
+  "feature_count": 26,
+  "n_unique_sellers": 48,
+  "sold_rate": 0.06341374269005848,
+  "seed": 42,
+  "protocol_A_random_split": {
+    "name": "Stratified random shuffle (matches v3 notebook recipe)",
+    "test_size": 0.2,
+    "train_size": 4377,
+    "test_size_actual": 1095,
+    "auc": 0.7754611972766055,
+    "f1": 0.4421052631578947,
+    "auc_ci_95": [
+      0.7115830270255195,
+      0.8348205251749006
+    ]
+  },
+  "protocol_B_group_aware_split": {
+    "name": "Temporal group-aware split (no seller leakage)",
+    "test_size": 0.2,
+    "train_size": 4098,
+    "test_size_actual": 1094,
+    "leakage_groups_before": 1,
+    "leakage_groups_after": 0,
+    "dropped_train_rows": 275,
+    "auc": 0.6832321597194119,
+    "f1": 0.0,
+    "auc_ci_95": [
+      0.6079144800882229,
+      0.7544113289613261
+    ]
+  },
+  "delta_auc_group_minus_random": -0.09222903755719358,
+  "interpretation": "If group-aware AUC drops sharply, the published random-split AUC was inflated by seller leakage. A small or null drop indicates the model learned generalisable signal rather than seller-identity shortcuts."
+}
