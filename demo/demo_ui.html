@@ -478,6 +478,88 @@
       border-color: var(--accent);
     }
 
+    /* ─── Threshold explainer (live label flip story) ─────────────────── */
+    .threshold-explainer {
+      margin-top: 12px;
+      padding: 12px 14px;
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      transition: all 0.25s ease;
+    }
+    .threshold-explainer.active-sold {
+      background: linear-gradient(135deg, var(--green-soft) 0%, #F0FDF4 100%);
+      border-color: var(--green);
+    }
+    .threshold-explainer.active-notsold {
+      background: linear-gradient(135deg, var(--red-soft) 0%, #FEF5F5 100%);
+      border-color: var(--red);
+    }
+    .threshold-explainer.flipping {
+      animation: flip-pulse 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes flip-pulse {
+      0%   { transform: scale(1); }
+      40%  { transform: scale(1.025); box-shadow: 0 0 0 6px rgba(255, 61, 127, 0.18); }
+      100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 61, 127, 0); }
+    }
+    .te-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      font-family: "SF Mono", monospace;
+      margin-bottom: 6px;
+    }
+    .te-key {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .te-val {
+      color: var(--text);
+      font-size: 16px;
+      font-weight: 800;
+      transition: color 0.2s ease;
+    }
+    .threshold-explainer.active-sold     .te-val { color: var(--green); }
+    .threshold-explainer.active-notsold  .te-val { color: var(--red); }
+    .te-arrow {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 0 4px;
+    }
+    .te-result {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      margin-top: 4px;
+      letter-spacing: 0.2px;
+    }
+    .te-result .delta {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 1px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-family: "SF Mono", monospace;
+      background: var(--bg-soft);
+      color: var(--muted);
+    }
+    .threshold-explainer.active-sold    .te-result .delta { background: white; color: var(--green); }
+    .threshold-explainer.active-notsold .te-result .delta { background: white; color: var(--red); }
+    .te-meta {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed var(--border-soft);
+    }
+    .te-meta b { color: var(--text); font-family: "SF Mono", monospace; }
+    .te-sep { margin: 0 6px; opacity: 0.5; }
+
     /* Metrics card */
     .metrics {
       display: grid;
@@ -653,6 +735,23 @@
           <div class="threshold-hints">
             <span class="hint-pill" data-tau="0.5">default 0.50</span>
             <span class="hint-pill" data-tau="0.247">F1-optimal 0.247</span>
+          </div>
+
+          <div id="threshold-explainer" class="threshold-explainer">
+            <div class="te-row">
+              <span class="te-key">P</span>
+              <span class="te-val" id="te-proba">—</span>
+              <span class="te-arrow" id="te-arrow">vs</span>
+              <span class="te-key">τ</span>
+              <span class="te-val" id="te-tau">0.50</span>
+            </div>
+            <div class="te-result" id="te-result">Henüz tahmin yok — bir senaryo tıkla.</div>
+            <div class="te-meta">
+              τ-bazlı dataset metrikleri:
+              <span id="te-f1">F1@τ=0.50: <b>0.268</b></span>
+              <span class="te-sep">·</span>
+              <span id="te-recall">Recall@τ=0.50: <b>0.19</b></span>
+            </div>
           </div>
 
           <div class="metrics" id="metrics"></div>
@@ -874,6 +973,9 @@ function renderResult(out) {
   const card = document.getElementById('result-card');
   card.classList.add('elevated', 'pulse');
   setTimeout(() => card.classList.remove('pulse'), 800);
+
+  // refresh the threshold explainer with the freshly-predicted P
+  updateThresholdExplainer(proba, out.threshold_used, true);
 }
 
 /* ─── Threshold + hints ─────────────────────────────────────────────── */
@@ -881,6 +983,80 @@ function updateThresholdHints(tau) {
   document.querySelectorAll('.hint-pill').forEach(p => {
     p.classList.toggle('active', Math.abs(parseFloat(p.dataset.tau) - tau) < 0.001);
   });
+}
+
+/* ─── Live threshold explainer ──────────────────────────────────────── */
+// Headline metrics tied to two named operating points (from notebook §11).
+// All other τ's are interpolated linearly between the two for an indicative
+// reading — this is a pedagogical demo, not a recalibration.
+const F1_AT = { 0.5: 0.268, 0.247: 0.354 };
+const RECALL_AT = { 0.5: 0.19, 0.247: 0.32 };
+function metricAtTau(tau, table) {
+  const taus = Object.keys(table).map(parseFloat).sort((a, b) => a - b);
+  if (tau <= taus[0]) return table[taus[0]];
+  if (tau >= taus[taus.length - 1]) return table[taus[taus.length - 1]];
+  for (let i = 0; i < taus.length - 1; i++) {
+    if (tau >= taus[i] && tau <= taus[i+1]) {
+      const t = (tau - taus[i]) / (taus[i+1] - taus[i]);
+      return table[taus[i]] + t * (table[taus[i+1]] - table[taus[i]]);
+    }
+  }
+  return table[taus[0]];
+}
+
+let prevLabelAtTau = null;
+function updateThresholdExplainer(proba, tau, fromPredict = false) {
+  const exp = document.getElementById('threshold-explainer');
+  const teProba  = document.getElementById('te-proba');
+  const teTau    = document.getElementById('te-tau');
+  const teArrow  = document.getElementById('te-arrow');
+  const teResult = document.getElementById('te-result');
+  const teF1     = document.getElementById('te-f1');
+  const teRecall = document.getElementById('te-recall');
+
+  if (proba <= 0) {
+    exp.classList.remove('active-sold', 'active-notsold');
+    teResult.textContent = 'Henüz tahmin yok — bir senaryo tıkla.';
+    teProba.textContent = '—';
+    teTau.textContent = tau.toFixed(3);
+    teArrow.textContent = 'vs';
+    return;
+  }
+
+  const isSold = proba >= tau;
+  const delta = (proba - tau);
+  const deltaPctPts = (delta * 100);
+  teProba.textContent = (proba * 100).toFixed(2) + '%';
+  teTau.textContent = (tau * 100).toFixed(1) + '%';
+  teArrow.textContent = isSold ? '≥' : '<';
+
+  const verdict = isSold ? 'SOLD within 7 days' : 'NOT SOLD within 7 days';
+  const deltaTxt = (deltaPctPts >= 0 ? '+' : '') + deltaPctPts.toFixed(1) + ' puan';
+  teResult.innerHTML = `Bu eşikte: <b>${verdict}</b> <span class="delta">${deltaTxt} ${isSold ? 'üstünde' : 'altında'} τ</span>`;
+
+  exp.classList.toggle('active-sold', isSold);
+  exp.classList.toggle('active-notsold', !isSold);
+
+  // pulse the explainer when the threshold caused a label flip
+  const currentLabelKey = isSold ? 'sold' : 'notsold';
+  if (prevLabelAtTau !== null && prevLabelAtTau !== currentLabelKey) {
+    exp.classList.remove('flipping'); void exp.offsetWidth;
+    exp.classList.add('flipping');
+    toast(`Eşik flip: ${verdict}`, isSold ? '✅' : '❌');
+  }
+  prevLabelAtTau = currentLabelKey;
+
+  // also re-color the result label live so the gauge's marker crossing P feels causal
+  if (!fromPredict) {
+    const lbl = document.getElementById('result-label');
+    lbl.textContent = verdict;
+    lbl.className = 'label ' + (isSold ? 'sold' : 'notsold');
+  }
+
+  const f1     = metricAtTau(tau, F1_AT);
+  const recall = metricAtTau(tau, RECALL_AT);
+  teF1.innerHTML     = `F1@τ=${tau.toFixed(3)}: <b>${f1.toFixed(3)}</b>`;
+  teRecall.innerHTML = `Recall@τ=${tau.toFixed(3)}: <b>${recall.toFixed(2)}</b>`;
 }
 
 document.getElementById('predict').addEventListener('click', predict);
@@ -903,6 +1079,9 @@ document.getElementById('threshold').addEventListener('input', (e) => {
   document.getElementById('gauge-marker').style.left = `${v * 100}%`;
   e.target.style.setProperty('--val', `${v*100}%`);
   updateThresholdHints(v);
+  // live label flip — no server round-trip needed; P is fixed,
+  // only the operating point changes.
+  if (lastProba > 0) updateThresholdExplainer(lastProba, v, false);
 });
 
 document.querySelectorAll('.hint-pill').forEach(pill => {
@@ -914,7 +1093,8 @@ document.querySelectorAll('.hint-pill').forEach(pill => {
     document.getElementById('threshold-val').textContent = tau.toFixed(2);
     document.getElementById('gauge-marker').style.left = `${tau * 100}%`;
     updateThresholdHints(tau);
-    if (lastProba > 0) predict();
+    // live flip via client-side (no re-predict — P doesn't depend on τ)
+    if (lastProba > 0) updateThresholdExplainer(lastProba, tau, false);
   });
 });
 
