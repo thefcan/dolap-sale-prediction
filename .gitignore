@@ -29,6 +29,11 @@ data/raw_snapshots/cohort_20260308/**
 
 !data/dolap_state.db
 
+# ── Whitelist: canonical processed dataset used by classification notebook ──
+!data/processed/model_ready_v3.csv
+!data/processed/engineered_features.parquet
+!data/processed/features_metadata.json
+
 # ────────────────────────────────────────────────────────────────────────────
 # ARTIFACTS – Trained models, generated figures, metric dumps
 # ────────────────────────────────────────────────────────────────────────────
@@ -39,7 +44,11 @@ artifacts/experiments/*
 !artifacts/models/.gitkeep
 !artifacts/figures/.gitkeep
 !artifacts/figures/*.png
+!artifacts/figures/eda/
+!artifacts/figures/eda/*.png
 !artifacts/metrics/.gitkeep
+!artifacts/metrics/*.json
+!artifacts/metrics/*.md
 !artifacts/experiments/.gitkeep
 *.pkl
 *.joblib
@@ -51,11 +60,19 @@ artifacts/experiments/*
 *.cbm
 *.bin
 *.model
+# ── Whitelist: trained model artefacts shipped with repo for live demo ──
+!models/
+!models/*.joblib
+!models/*.json
 
 # ────────────────────────────────────────────────────────────────────────────
-# REPORTS – Generated PDFs, HTML reports
+# REPORTS – Methodology addendum, presentation prep, article draft
+#   (committed so the repo tells a complete story for CV/portfolio review)
 # ────────────────────────────────────────────────────────────────────────────
-reports/*
+reports/.DS_Store
+!reports/
+!reports/*.md
+!reports/*.json
 !reports/.gitkeep
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -172,6 +189,19 @@ scripts/*.html
 !data/interim/cohort_20250712_cleaned.csv
 !data/raw_snapshots/cohort_20260308/*.jsonl
 !data/interim/cohort_20260308_cleaned.csv
+
+# ── Whitelist: canonical processed dataset (must override *.csv / *.parquet / *.json blankets) ──
+!data/processed/model_ready_v3.csv
+!data/processed/engineered_features.parquet
+!data/processed/features_metadata.json
+
+# ── Whitelist: trained model artefacts (must override *.json blanket) ──
+!models/*.json
+
+# ── Whitelist: reports + artifact metric dumps (must override *.json blanket) ──
+!reports/*.json
+!artifacts/metrics/*.json
+
 *.xml
 !configs/*.xml
 *.zip
