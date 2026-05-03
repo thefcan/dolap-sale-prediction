@@ -1,4 +1,12 @@
-# Notebook Sunum Konuşma Metni — 17 Section, Sahnede Okunacak
+# Notebook Sunum Konuşma Metni — 17 Section, Sahnede Okunacak (MASTER)
+
+> **Bu dosya = unified overview**. 3 üye için ayrı detaylı script'ler:
+>
+> - **F (Furkan)** → [`script_furkan.md`](script_furkan.md) + [`script_demo_detailed.md`](script_demo_detailed.md)
+> - **HU (Halil Utku)** → [`script_halil_utku.md`](script_halil_utku.md)
+> - **Hİ (Halil İbrahim)** → [`script_halil_ibrahim.md`](script_halil_ibrahim.md)
+>
+> Her üye **kendi script'inden** sahneye çıksın — bu master dosya prova ve genel akış için.
 
 > **Hedef**: `notebooks/dolap_classification_final.html` (kod-gizli HTML export). Sunum gün açılacak dosya bu, notebook'un kendisi değil. Demo `127.0.0.1:5000` ayrı tab'da açık.
 >
