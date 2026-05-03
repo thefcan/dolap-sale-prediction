@@ -4,12 +4,13 @@
   <meta charset="UTF-8">
   <title>Dolap 7-Day Sale Prediction — Live Demo</title>
   <style>
-    /* ─── Dolap-inspired palette (pink/magenta + warm orange) ─────────── */
+    /* ─── Dolap-inspired palette ──────────────────────────────────────── */
     :root {
       --bg:           #FFF5F8;
       --bg-soft:      #FFEEF3;
       --card:         #FFFFFF;
       --card-shadow:  0 1px 3px rgba(255, 61, 127, 0.08), 0 4px 12px rgba(214, 51, 108, 0.06);
+      --card-shadow-lg: 0 8px 32px rgba(255, 61, 127, 0.18), 0 4px 12px rgba(214, 51, 108, 0.12);
       --border:       #FFD6E1;
       --border-soft:  #FFE7EE;
       --text:         #1A1A2E;
@@ -27,6 +28,9 @@
       --yellow-soft:  #FEF9C3;
       --blue:         #2563EB;
       --gradient:     linear-gradient(135deg, #FF3D7F 0%, #FF6B35 100%);
+      --gradient-hot: linear-gradient(135deg, #DC2626 0%, #FF6B35 100%);
+      --gradient-cold:linear-gradient(135deg, #2563EB 0%, #FF3D7F 100%);
+      --gradient-sold:linear-gradient(135deg, #16A34A 0%, #FF6B35 100%);
     }
     * { box-sizing: border-box; }
     html, body {
@@ -43,158 +47,192 @@
     /* ─── Header ──────────────────────────────────────────────────────── */
     header {
       margin-bottom: 24px;
-      padding: 20px 24px;
+      padding: 22px 28px;
       background: var(--gradient);
-      border-radius: 12px;
+      border-radius: 14px;
       color: white;
-      box-shadow: 0 4px 16px rgba(255, 61, 127, 0.25);
+      box-shadow: 0 6px 22px rgba(255, 61, 127, 0.28);
+      position: relative;
+      overflow: hidden;
+    }
+    header::before {
+      content: '';
+      position: absolute;
+      top: -50%; right: -10%;
+      width: 300px; height: 300px;
+      background: radial-gradient(circle, rgba(255,255,255,0.18) 0%, transparent 70%);
+      border-radius: 50%;
+      pointer-events: none;
     }
     header h1 {
       margin: 0 0 6px;
       font-size: 22px;
       font-weight: 700;
       letter-spacing: -0.3px;
+      position: relative;
     }
     header h1 .pill {
       display: inline-block;
-      background: rgba(255, 255, 255, 0.18);
-      padding: 2px 10px;
+      background: rgba(255, 255, 255, 0.22);
+      backdrop-filter: blur(8px);
+      padding: 3px 12px;
       border-radius: 999px;
-      font-size: 12px;
-      font-weight: 600;
+      font-size: 11px;
+      font-weight: 700;
       vertical-align: middle;
-      margin-left: 8px;
-      letter-spacing: 0.4px;
+      margin-left: 10px;
+      letter-spacing: 0.6px;
       text-transform: uppercase;
+      animation: pulse-pill 2.4s ease-in-out infinite;
+    }
+    @keyframes pulse-pill {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0.4); }
+      50%      { box-shadow: 0 0 0 6px rgba(255,255,255,0); }
     }
     header p {
       margin: 0;
       font-size: 13px;
-      opacity: 0.92;
+      opacity: 0.94;
       font-weight: 500;
+      position: relative;
     }
 
     /* ─── Layout ──────────────────────────────────────────────────────── */
     .grid {
       display: grid;
-      grid-template-columns: 1fr 400px;
-      gap: 20px;
+      grid-template-columns: 1fr 420px;
+      gap: 22px;
     }
     .card {
       background: var(--card);
       border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 18px;
+      border-radius: 14px;
+      padding: 20px;
       box-shadow: var(--card-shadow);
+      transition: box-shadow 0.3s ease;
     }
+    .card.elevated { box-shadow: var(--card-shadow-lg); }
     .card h2 {
-      margin: 0 0 14px;
+      margin: 0 0 16px;
       font-size: 13px;
       font-weight: 700;
       color: var(--primary);
       text-transform: uppercase;
       letter-spacing: 0.6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
     /* ─── Preset groups ───────────────────────────────────────────────── */
     .preset-info {
       font-size: 12px;
       color: var(--muted);
-      padding: 8px 12px;
+      padding: 10px 12px;
       background: var(--bg-soft);
-      border-radius: 6px;
-      margin-bottom: 12px;
-      min-height: 16px;
+      border-radius: 8px;
+      margin: 14px 0 16px;
+      border: 1px solid var(--border-soft);
+      transition: background 0.3s ease, border-color 0.3s ease;
     }
-    .preset-info b { color: var(--primary-dark); }
-    .preset-info .truth-sold     { color: var(--green); font-weight: 600; }
-    .preset-info .truth-not-sold { color: var(--red);   font-weight: 600; }
+    .preset-info b { color: var(--text); }
+    .preset-info.has-content {
+      background: linear-gradient(135deg, var(--primary-soft) 0%, var(--accent-soft) 100%);
+      border-color: var(--border);
+    }
+    .truth-sold     { color: var(--green); font-weight: 700; }
+    .truth-not-sold { color: var(--red); font-weight: 700; }
 
-    .preset-group {
-      margin-bottom: 10px;
-    }
+    .preset-group { margin-bottom: 12px; }
     .preset-group-title {
       font-size: 10px;
       font-weight: 700;
-      letter-spacing: 0.6px;
-      text-transform: uppercase;
       color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
       margin-bottom: 6px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
+      padding-left: 2px;
     }
-    .preset-group-title::before {
-      content: '';
-      width: 8px; height: 8px; border-radius: 2px;
-      background: var(--primary);
-    }
-    .preset-group[data-group="strong"]   .preset-group-title::before { background: var(--green); }
-    .preset-group[data-group="pricing"]  .preset-group-title::before { background: var(--primary); }
-    .preset-group[data-group="edge"]     .preset-group-title::before { background: var(--accent); }
-    .preset-group[data-group="errors"]   .preset-group-title::before { background: var(--red); }
-
     .preset-row {
       display: flex;
-      gap: 6px;
       flex-wrap: wrap;
+      gap: 6px;
     }
     .preset-btn {
       background: var(--card);
-      border: 1.5px solid var(--border);
       color: var(--text);
-      padding: 6px 12px;
-      border-radius: 6px;
+      border: 1.5px solid var(--border);
+      padding: 8px 12px;
+      border-radius: 8px;
       font-size: 12px;
-      font-weight: 500;
+      font-weight: 600;
       cursor: pointer;
-      transition: all 0.15s ease;
+      transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
     }
+    .preset-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: var(--gradient);
+      opacity: 0;
+      transition: opacity 0.18s ease;
+      z-index: 0;
+    }
+    .preset-btn span { position: relative; z-index: 1; }
     .preset-btn:hover {
       border-color: var(--primary);
-      background: var(--primary-soft);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(255, 61, 127, 0.18);
     }
     .preset-btn.active {
-      background: var(--gradient);
       color: white;
-      border-color: var(--primary-dark);
-      box-shadow: 0 2px 6px rgba(255, 61, 127, 0.3);
+      border-color: var(--primary);
+      box-shadow: 0 4px 14px rgba(255, 61, 127, 0.4);
+      transform: translateY(-1px);
     }
+    .preset-btn.active::before { opacity: 1; }
 
-    /* ─── Filter row ──────────────────────────────────────────────────── */
+    /* Filter + reset */
     .filter-row {
       display: flex;
       gap: 8px;
-      margin: 14px 0 10px;
+      margin: 12px 0;
     }
     .filter-row input {
       flex: 1;
       background: var(--card);
-      border: 1.5px solid var(--border);
+      border: 1px solid var(--border);
       color: var(--text);
       padding: 8px 12px;
-      border-radius: 6px;
-      font-size: 13px;
-      transition: border-color 0.15s ease;
+      border-radius: 8px;
+      font-size: 12px;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
     .filter-row input:focus {
       outline: none;
       border-color: var(--primary);
-      box-shadow: 0 0 0 3px var(--primary-soft);
+      box-shadow: 0 0 0 3px rgba(255, 61, 127, 0.12);
     }
     .reset-btn {
-      cursor: pointer;
-      border: 1.5px solid var(--border);
       background: var(--card);
       color: var(--muted);
+      border: 1px solid var(--border);
       padding: 8px 14px;
-      border-radius: 6px;
-      font-size: 13px;
-      font-weight: 500;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s ease;
     }
-    .reset-btn:hover { background: var(--bg-soft); color: var(--text); }
+    .reset-btn:hover {
+      color: var(--primary);
+      border-color: var(--primary);
+      background: var(--primary-soft);
+    }
 
-    /* ─── Feature inputs grid ─────────────────────────────────────────── */
+    /* Features grid */
     .features-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -227,63 +265,84 @@
       border-radius: 4px;
       font-size: 12px;
       font-family: "SF Mono", "Consolas", monospace;
-      transition: border-color 0.15s ease;
+      transition: all 0.15s ease;
     }
     .feat input:focus {
       outline: none;
       border-color: var(--primary);
       background: var(--bg-soft);
+      box-shadow: 0 0 0 3px rgba(255, 61, 127, 0.12);
+    }
+    .feat input.changed {
+      border-color: var(--accent);
+      background: var(--accent-soft);
     }
 
     /* ─── Result panel ────────────────────────────────────────────────── */
     .result {
       text-align: center;
-      padding: 16px 8px;
+      padding: 18px 8px 8px;
+      position: relative;
     }
     .result .label {
-      font-size: 16px;
+      font-size: 14px;
       font-weight: 700;
       margin-bottom: 4px;
       letter-spacing: 0.3px;
+      transition: all 0.3s ease;
+      display: inline-block;
+      padding: 5px 14px;
+      border-radius: 999px;
+      background: var(--bg-soft);
+      color: var(--muted);
+      border: 1px solid var(--border-soft);
     }
     .result .label.sold {
       color: var(--green);
       background: var(--green-soft);
-      padding: 4px 14px;
-      border-radius: 999px;
-      display: inline-block;
+      border-color: var(--green);
+      animation: label-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
     .result .label.notsold {
       color: var(--red);
       background: var(--red-soft);
-      padding: 4px 14px;
-      border-radius: 999px;
-      display: inline-block;
+      border-color: var(--red);
+      animation: label-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    @keyframes label-pop {
+      0%   { transform: scale(0.8); opacity: 0; }
+      60%  { transform: scale(1.08); }
+      100% { transform: scale(1); opacity: 1; }
     }
     .result .proba {
-      font-size: 44px;
+      font-size: 56px;
       font-weight: 800;
       font-family: "SF Mono", monospace;
-      margin: 14px 0 6px;
+      margin: 16px 0 4px;
       background: var(--gradient);
       -webkit-background-clip: text;
       background-clip: text;
       -webkit-text-fill-color: transparent;
-      letter-spacing: -1.5px;
+      letter-spacing: -2px;
+      line-height: 1;
+      transition: background 0.4s ease;
     }
+    .result .proba.high { background: var(--gradient-sold); -webkit-background-clip: text; background-clip: text; }
+    .result .proba.low  { background: var(--gradient-cold); -webkit-background-clip: text; background-clip: text; }
     .result .proba-sub {
       font-size: 11px;
       color: var(--muted);
+      letter-spacing: 0.3px;
     }
 
     /* Gauge */
     .gauge-wrap {
-      margin-top: 18px;
+      margin-top: 22px;
     }
     .gauge {
-      height: 12px;
-      background: var(--bg-soft);
-      border-radius: 6px;
+      height: 14px;
+      background: linear-gradient(to right, #DBEAFE 0%, #FEF3C7 50%, #DCFCE7 100%);
+      border-radius: 7px;
       overflow: hidden;
       position: relative;
       border: 1px solid var(--border-soft);
@@ -291,24 +350,49 @@
     .gauge-fill {
       height: 100%;
       background: var(--gradient);
-      transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+      box-shadow: inset 0 -2px 4px rgba(0,0,0,0.08);
+      position: relative;
+    }
+    .gauge-fill::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.5) 50%, transparent 100%);
+      animation: shimmer 2s ease-in-out infinite;
+      animation-play-state: paused;
+    }
+    .gauge-fill.animating::after { animation-play-state: running; }
+    @keyframes shimmer {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
     }
     .gauge-marker {
       position: absolute;
-      top: -4px;
-      width: 3px;
-      height: 18px;
+      top: -5px;
+      width: 4px;
+      height: 22px;
       background: var(--text);
-      box-shadow: 0 0 0 1px white;
-      border-radius: 1px;
-      transition: left 0.3s ease;
+      box-shadow: 0 0 0 1.5px white, 0 2px 4px rgba(0,0,0,0.15);
+      border-radius: 2px;
+      transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .gauge-marker::before {
+      content: 'τ';
+      position: absolute;
+      top: -16px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--text);
+      font-family: "SF Mono", monospace;
     }
     .gauge-labels {
       display: flex;
       justify-content: space-between;
       font-size: 10px;
       color: var(--muted);
-      margin-top: 4px;
+      margin-top: 6px;
       font-family: "SF Mono", monospace;
     }
 
@@ -317,47 +401,52 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      margin-top: 14px;
-      padding: 10px;
+      margin-top: 18px;
+      padding: 12px;
       background: var(--bg-soft);
-      border-radius: 6px;
+      border-radius: 10px;
+      border: 1px solid var(--border-soft);
     }
     .threshold-row .tau {
       font-family: "SF Mono", monospace;
       font-weight: 700;
       color: var(--primary);
-      font-size: 13px;
+      font-size: 14px;
     }
     input[type="range"] {
       flex: 1;
       -webkit-appearance: none;
       appearance: none;
       height: 6px;
-      background: var(--border);
+      background: linear-gradient(to right, var(--primary) 0%, var(--primary) var(--val,50%), var(--border) var(--val,50%), var(--border) 100%);
       border-radius: 3px;
       outline: none;
     }
     input[type="range"]::-webkit-slider-thumb {
       -webkit-appearance: none;
-      width: 16px; height: 16px;
-      background: var(--primary);
+      width: 18px; height: 18px;
+      background: white;
+      border: 2.5px solid var(--primary);
       border-radius: 50%;
       cursor: pointer;
-      box-shadow: 0 1px 4px rgba(255,61,127,0.4);
+      box-shadow: 0 2px 6px rgba(255,61,127,0.4);
+      transition: transform 0.12s ease;
     }
+    input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
     input[type="range"]::-moz-range-thumb {
-      width: 16px; height: 16px;
-      background: var(--primary);
+      width: 18px; height: 18px;
+      background: white;
+      border: 2.5px solid var(--primary);
       border-radius: 50%;
       cursor: pointer;
-      border: none;
     }
     .threshold-val {
       font-family: "SF Mono", monospace;
-      min-width: 44px;
+      min-width: 48px;
       text-align: right;
-      font-weight: 600;
+      font-weight: 700;
       color: var(--text);
+      font-size: 13px;
     }
 
     .threshold-hints {
@@ -365,33 +454,49 @@
       justify-content: space-between;
       font-size: 10px;
       color: var(--muted);
-      margin-top: 4px;
+      margin-top: 6px;
       padding: 0 4px;
     }
     .threshold-hints .hint-pill {
       background: var(--accent-soft);
       color: var(--accent);
-      padding: 1px 6px;
-      border-radius: 4px;
-      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-weight: 700;
       cursor: pointer;
+      transition: all 0.15s ease;
+      border: 1px solid transparent;
     }
-    .threshold-hints .hint-pill:hover { filter: brightness(0.95); }
+    .threshold-hints .hint-pill:hover {
+      background: var(--accent);
+      color: white;
+      transform: translateY(-1px);
+    }
+    .threshold-hints .hint-pill.active {
+      background: var(--accent);
+      color: white;
+      border-color: var(--accent);
+    }
 
     /* Metrics card */
     .metrics {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 6px;
-      margin-top: 16px;
+      margin-top: 18px;
     }
     .metric {
       background: var(--bg-soft);
-      padding: 8px 10px;
-      border-radius: 6px;
+      padding: 9px 11px;
+      border-radius: 8px;
       border: 1px solid var(--border-soft);
+      transition: all 0.15s ease;
     }
-    .metric .k { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; }
+    .metric:hover {
+      background: var(--primary-soft);
+      border-color: var(--primary);
+    }
+    .metric .k { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; }
     .metric .v { font-family: "SF Mono", monospace; font-weight: 700; font-size: 13px; color: var(--text); margin-top: 2px; }
 
     /* Predict button */
@@ -400,26 +505,106 @@
       border: none;
       background: var(--gradient);
       color: white;
-      padding: 12px 32px;
-      border-radius: 8px;
-      font-size: 14px;
+      padding: 14px 32px;
+      border-radius: 10px;
+      font-size: 15px;
       font-weight: 700;
-      letter-spacing: 0.3px;
+      letter-spacing: 0.4px;
       width: 100%;
-      box-shadow: 0 2px 8px rgba(255, 61, 127, 0.3);
-      transition: all 0.15s ease;
-      margin-top: 16px;
+      box-shadow: 0 4px 14px rgba(255, 61, 127, 0.32);
+      transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+      margin-top: 18px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
     }
+    .predict-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(255,255,255,0.2);
+      opacity: 0;
+      transition: opacity 0.18s ease;
+    }
+    .predict-btn:hover::before { opacity: 1; }
     .predict-btn:hover {
-      box-shadow: 0 4px 14px rgba(255, 61, 127, 0.45);
-      transform: translateY(-1px);
+      box-shadow: 0 6px 22px rgba(255, 61, 127, 0.5);
+      transform: translateY(-2px);
     }
     .predict-btn:active { transform: translateY(0); }
+    .predict-btn:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .predict-btn .spinner {
+      display: none;
+      width: 14px; height: 14px;
+      border: 2.5px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    .predict-btn.loading .spinner { display: inline-block; }
+    .predict-btn.loading .label-text::after { content: 'Tahmin ediliyor…'; }
+    .predict-btn.loading .label-text-original { display: none; }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 30px; right: 30px;
+      background: var(--text);
+      color: white;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+      transform: translateY(100px);
+      opacity: 0;
+      transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+      z-index: 1000;
+      max-width: 320px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    #toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    #toast .icon { font-size: 16px; }
+
+    /* Result card pulse on update */
+    @keyframes result-pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(255,61,127,0.5); }
+      70%  { box-shadow: 0 0 0 18px rgba(255,61,127,0); }
+      100% { box-shadow: 0 0 0 0 rgba(255,61,127,0); }
+    }
+    .card.pulse { animation: result-pulse 0.8s ease-out; }
+
+    /* Skeleton loading */
+    .skeleton {
+      background: linear-gradient(90deg, var(--bg-soft) 0%, var(--border-soft) 50%, var(--bg-soft) 100%);
+      background-size: 200% 100%;
+      animation: skel 1.4s ease-in-out infinite;
+      border-radius: 6px;
+    }
+    @keyframes skel {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
 
     @media (max-width: 1000px) {
       .grid { grid-template-columns: 1fr; }
       header h1 { font-size: 18px; }
-      .result .proba { font-size: 36px; }
+      .result .proba { font-size: 44px; }
     }
   </style>
 </head>
@@ -438,15 +623,15 @@
 
         <div class="filter-row">
           <input id="filter" placeholder="🔍 Feature ara (price, brand, photo, engagement…)">
-          <button class="reset-btn" id="reset">Defaults</button>
+          <button class="reset-btn" id="reset">↺ Defaults</button>
         </div>
         <div id="features" class="features-grid"></div>
       </div>
 
-      <div class="card">
+      <div class="card" id="result-card">
         <h2>🎯 Tahmin</h2>
         <div class="result">
-          <div id="result-label" class="label">—</div>
+          <div id="result-label" class="label">Henüz tahmin yok</div>
           <div id="result-proba" class="proba">—</div>
           <div id="result-proba-sub" class="proba-sub">P(sold within 7 days)</div>
 
@@ -462,7 +647,7 @@
 
           <div class="threshold-row">
             <span class="tau">τ</span>
-            <input type="range" id="threshold" min="0" max="1" step="0.01" value="0.5">
+            <input type="range" id="threshold" min="0" max="1" step="0.01" value="0.5" style="--val:50%">
             <span id="threshold-val" class="threshold-val">0.50</span>
           </div>
           <div class="threshold-hints">
@@ -472,14 +657,20 @@
 
           <div class="metrics" id="metrics"></div>
         </div>
-        <button class="predict-btn" id="predict">Predict</button>
+        <button class="predict-btn" id="predict">
+          <span class="spinner"></span>
+          <span class="label-text"><span class="label-text-original">⚡ Predict</span></span>
+        </button>
       </div>
     </div>
   </div>
 
+  <div id="toast"><span class="icon">✓</span><span id="toast-text"></span></div>
+
 <script>
 const API_BASE = window.location.origin || 'http://127.0.0.1:5000';
 let SCHEMA = null;
+let lastProba = 0;
 
 const GROUP_LABELS = {
   strong:  '🟢 Güçlü Tahminler',
@@ -489,25 +680,59 @@ const GROUP_LABELS = {
 };
 const GROUP_ORDER = ['strong', 'pricing', 'edge', 'errors'];
 
+/* ─── Toast ─────────────────────────────────────────────────────────── */
+let toastTimer = null;
+function toast(msg, icon = '✓') {
+  const t = document.getElementById('toast');
+  document.getElementById('toast-text').textContent = msg;
+  t.querySelector('.icon').textContent = icon;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+/* ─── Count-up animation ────────────────────────────────────────────── */
+function animateNumber(el, fromVal, toVal, duration = 600) {
+  const start = performance.now();
+  function tick(now) {
+    const t = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+    const current = fromVal + (toVal - fromVal) * eased;
+    el.textContent = `${(current * 100).toFixed(2)}%`;
+    if (t < 1) requestAnimationFrame(tick);
+    else el.textContent = `${(toVal * 100).toFixed(2)}%`;
+  }
+  requestAnimationFrame(tick);
+}
+
+/* ─── Schema loader ─────────────────────────────────────────────────── */
 async function loadSchema() {
-  const res = await fetch(API_BASE + '/api/schema');
-  SCHEMA = await res.json();
-  document.getElementById('header-sub').textContent =
-    `${SCHEMA.feature_count} features  ·  XGBoost Test AUC = ${SCHEMA.headline_metrics.test_roc_auc.toFixed(4)} ` +
-    `[95% CI: ${SCHEMA.headline_metrics.test_roc_auc_ci.map(x=>x.toFixed(3)).join(', ')}]  ·  ` +
-    `${SCHEMA.presets ? SCHEMA.presets.length : 0} senaryo hazır`;
-  buildInputs();
-  buildMetrics();
-  buildPresets();
-  document.getElementById('threshold').value = SCHEMA.threshold_default;
-  document.getElementById('threshold-val').textContent = SCHEMA.threshold_default.toFixed(2);
+  try {
+    const res = await fetch(API_BASE + '/api/schema');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    SCHEMA = await res.json();
+    document.getElementById('header-sub').textContent =
+      `${SCHEMA.feature_count} features  ·  XGBoost Test AUC = ${SCHEMA.headline_metrics.test_roc_auc.toFixed(4)} ` +
+      `[95% CI: ${SCHEMA.headline_metrics.test_roc_auc_ci.map(x=>x.toFixed(3)).join(', ')}]  ·  ` +
+      `${SCHEMA.presets ? SCHEMA.presets.length : 0} senaryo hazır`;
+    buildInputs();
+    buildMetrics();
+    buildPresets();
+    document.getElementById('threshold').value = SCHEMA.threshold_default;
+    document.getElementById('threshold').style.setProperty('--val', `${SCHEMA.threshold_default*100}%`);
+    document.getElementById('threshold-val').textContent = SCHEMA.threshold_default.toFixed(2);
+    updateThresholdHints(SCHEMA.threshold_default);
+    toast('Demo hazır — bir senaryo seç ya da Predict\'e bas');
+  } catch (err) {
+    document.getElementById('header-sub').textContent =
+      `❌ Schema yüklenemedi. Flask server çalışıyor mu? (${err.message})`;
+  }
 }
 
 function buildPresets() {
   const presets = SCHEMA.presets || [];
   const container = document.getElementById('presets-container');
   container.innerHTML = '';
-  // Group presets
   const grouped = {};
   for (const p of presets) {
     const g = p.group || 'other';
@@ -528,7 +753,7 @@ function buildPresets() {
     for (const p of grouped[groupKey]) {
       const btn = document.createElement('button');
       btn.className = 'preset-btn';
-      btn.textContent = p.label;
+      btn.innerHTML = `<span>${p.label}</span>`;
       btn.dataset.id = p.id;
       btn.title = p.description;
       btn.addEventListener('click', () => applyPreset(p));
@@ -552,6 +777,11 @@ function buildInputs() {
       <input type="number" step="any" data-feat="${feat}" value="${def}"
              title="default: ${def}, range: [${range.min}, ${range.max}]">
     `;
+    const input = div.querySelector('input');
+    input.addEventListener('input', () => {
+      const def = SCHEMA.defaults[input.dataset.feat];
+      input.classList.toggle('changed', parseFloat(input.value) !== parseFloat(def));
+    });
     grid.appendChild(div);
   }
 }
@@ -574,29 +804,56 @@ function applyPreset(p) {
   });
   document.querySelectorAll('[data-feat]').forEach(input => {
     const feat = input.dataset.feat;
-    if (feat in p.features) input.value = p.features[feat];
+    if (feat in p.features) {
+      input.value = p.features[feat];
+      const def = SCHEMA.defaults[feat];
+      input.classList.toggle('changed', parseFloat(p.features[feat]) !== parseFloat(def));
+    }
   });
   const truthClass = p.true_label === 1 ? 'truth-sold' : 'truth-not-sold';
   const truthTxt   = p.true_label === 1 ? '✅ satıldı (gerçek)' : '❌ satılmadı (gerçek)';
-  document.getElementById('preset-info').innerHTML =
+  const info = document.getElementById('preset-info');
+  info.classList.add('has-content');
+  info.innerHTML =
     `<b>${p.label}</b> — ${p.description} · <span class="${truthClass}">${truthTxt}</span>`;
+  toast(`"${p.label}" yüklendi`, '🎯');
   predict();
 }
 
+/* ─── Predict ───────────────────────────────────────────────────────── */
 async function predict() {
+  const btn = document.getElementById('predict');
+  if (btn.classList.contains('loading')) return;
+
+  btn.classList.add('loading');
+  btn.disabled = true;
+
+  const fill = document.getElementById('gauge-fill');
+  fill.classList.add('animating');
+
   const features = {};
   document.querySelectorAll('[data-feat]').forEach(i => {
     const v = i.value;
     if (v !== '' && v !== null) features[i.dataset.feat] = parseFloat(v);
   });
   const threshold = parseFloat(document.getElementById('threshold').value);
-  const res = await fetch(API_BASE + '/api/predict', {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({features, threshold}),
-  });
-  const out = await res.json();
-  renderResult(out);
+
+  try {
+    const res = await fetch(API_BASE + '/api/predict', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({features, threshold}),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const out = await res.json();
+    renderResult(out);
+  } catch (err) {
+    toast(`❌ Tahmin başarısız: ${err.message}`, '⚠️');
+  } finally {
+    btn.classList.remove('loading');
+    btn.disabled = false;
+    setTimeout(() => fill.classList.remove('animating'), 700);
+  }
 }
 
 function renderResult(out) {
@@ -604,34 +861,63 @@ function renderResult(out) {
   const label = document.getElementById('result-label');
   label.textContent = out.predicted_text;
   label.className = 'label ' + (out.predicted_label === 1 ? 'sold' : 'notsold');
-  document.getElementById('result-proba').textContent = `${(proba * 100).toFixed(2)}%`;
+
+  const probaEl = document.getElementById('result-proba');
+  probaEl.classList.toggle('high', proba >= 0.7);
+  probaEl.classList.toggle('low',  proba <= 0.3);
+  animateNumber(probaEl, lastProba, proba, 700);
+  lastProba = proba;
+
   document.getElementById('gauge-fill').style.width = `${proba * 100}%`;
   document.getElementById('gauge-marker').style.left = `${out.threshold_used * 100}%`;
+
+  const card = document.getElementById('result-card');
+  card.classList.add('elevated', 'pulse');
+  setTimeout(() => card.classList.remove('pulse'), 800);
+}
+
+/* ─── Threshold + hints ─────────────────────────────────────────────── */
+function updateThresholdHints(tau) {
+  document.querySelectorAll('.hint-pill').forEach(p => {
+    p.classList.toggle('active', Math.abs(parseFloat(p.dataset.tau) - tau) < 0.001);
+  });
 }
 
 document.getElementById('predict').addEventListener('click', predict);
+
 document.getElementById('reset').addEventListener('click', () => {
   document.querySelectorAll('[data-feat]').forEach(i => {
     i.value = SCHEMA.defaults[i.dataset.feat];
+    i.classList.remove('changed');
   });
   document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('preset-info').innerHTML = 'Defaults yüklendi (medyan ilan).';
+  const info = document.getElementById('preset-info');
+  info.classList.remove('has-content');
+  info.innerHTML = 'Defaults yüklendi (medyan ilan).';
+  toast('Defaults yüklendi', '↺');
 });
+
 document.getElementById('threshold').addEventListener('input', (e) => {
   const v = parseFloat(e.target.value);
   document.getElementById('threshold-val').textContent = v.toFixed(2);
-  // also reposition the gauge marker live
   document.getElementById('gauge-marker').style.left = `${v * 100}%`;
+  e.target.style.setProperty('--val', `${v*100}%`);
+  updateThresholdHints(v);
 });
+
 document.querySelectorAll('.hint-pill').forEach(pill => {
   pill.addEventListener('click', () => {
     const tau = parseFloat(pill.dataset.tau);
-    document.getElementById('threshold').value = tau;
+    const slider = document.getElementById('threshold');
+    slider.value = tau;
+    slider.style.setProperty('--val', `${tau*100}%`);
     document.getElementById('threshold-val').textContent = tau.toFixed(2);
     document.getElementById('gauge-marker').style.left = `${tau * 100}%`;
-    predict();
+    updateThresholdHints(tau);
+    if (lastProba > 0) predict();
   });
 });
+
 document.getElementById('filter').addEventListener('input', (e) => {
   const q = e.target.value.toLowerCase();
   document.querySelectorAll('#features .feat').forEach(f => {
@@ -640,10 +926,19 @@ document.getElementById('filter').addEventListener('input', (e) => {
   });
 });
 
-loadSchema().catch(err => {
-  document.getElementById('header-sub').textContent =
-    `Could not load schema. Is the Flask server running? (${err})`;
+/* ─── Keyboard shortcuts (sahnede güzel görünür) ─────────────────────── */
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault();
+    predict();
+  }
+  if (e.key === 'r' && (e.metaKey || e.ctrlKey) && e.shiftKey) {
+    e.preventDefault();
+    document.getElementById('reset').click();
+  }
 });
+
+loadSchema();
 </script>
 </body>
 </html>
