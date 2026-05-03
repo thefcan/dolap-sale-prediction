@@ -82,6 +82,8 @@ notebooks/.ipynb_checkpoints/
 *.ipynb_checkpoints/
 # Uncomment below to ignore notebook outputs (use nbstripout pre-commit hook instead)
 # notebooks/*.ipynb
+# Static HTML exports (regenerated on demand via `jupyter nbconvert --to html --no-input`)
+notebooks/*.html
 
 # ────────────────────────────────────────────────────────────────────────────
 # PYTHON
