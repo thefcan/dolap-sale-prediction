@@ -2,15 +2,79 @@
 
 > Bir Dolap.com ikinci el moda ilanının özelliklerine bakarak **7 gün içinde satılıp satılmayacağını** tahmin eden uçtan uca makine öğrenmesi projesi. Veri toplama (scraping), zamana duyarlı etiketleme, özellik mühendisliği, model karşılaştırma, ablasyon analizi ve canlı demo dahil.
 
+<div align="center">
+
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Model: XGBoost](https://img.shields.io/badge/model-XGBoost-orange.svg)](https://xgboost.readthedocs.io/)
+[![ROC-AUC](https://img.shields.io/badge/ROC--AUC-0.815-brightgreen.svg)](#sonuçlar)
+[![Demo: Flask](https://img.shields.io/badge/demo-Flask%20%7C%20localhost%3A5000-lightgrey.svg)](#canlı-demo)
+
+</div>
+
+---
+
+## 🖼️ Demo & Screenshots
+
+Aşağıdaki görseller, projenin canlı Flask demo arayüzünden alınmıştır.  
+Ekran görüntülerinizi `assets/` klasörüne yükleyip README otomatik olarak güncellenecektir.
+
+<br>
+
+<table align="center" cellspacing="0" cellpadding="6" border="0">
+  <tr>
+    <td align="center" width="50%">
+      <img
+        src="assets/screenshot1.png"
+        alt="Demo Arayüzü — Tahmin Paneli"
+        width="100%"
+        style="border-radius:8px; border:1px solid #e1e4e8;"
+      /><br/>
+      <sub><b>① Tahmin Paneli</b><br/>Özellik girişi, SOLD / NOT SOLD etiketi ve olasılık gauge'u</sub>
+    </td>
+    <td align="center" width="50%">
+      <img
+        src="assets/screenshot2.png"
+        alt="Karar Eşiği Slider — Threshold Explainer"
+        width="100%"
+        style="border-radius:8px; border:1px solid #e1e4e8;"
+      /><br/>
+      <sub><b>② Threshold Explainer</b><br/>τ slider'ı hareket ettikçe karar anlık güncelleniyor (default 0.50, optimal 0.247)</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
+      <img
+        src="assets/screenshot3.png"
+        alt="SHAP Özellik Önem Sıralaması"
+        width="100%"
+        style="border-radius:8px; border:1px solid #e1e4e8;"
+      /><br/>
+      <sub><b>③ SHAP Feature Importance</b><br/>Hangi özellikler tahmini hangi yönde etkiliyor?</sub>
+    </td>
+    <td align="center" width="50%">
+      <img
+        src="assets/screenshot4.png"
+        alt="6 Model ROC Eğrisi Karşılaştırması"
+        width="100%"
+        style="border-radius:8px; border:1px solid #e1e4e8;"
+      /><br/>
+      <sub><b>④ ROC Eğrileri</b><br/>6 modelin karşılaştırmalı performans grafiği — XGBoost AUC 0.815</sub>
+    </td>
+  </tr>
+</table>
+
+<br>
+
+> **📁 Görselleri eklemek için:** ekran görüntülerinizi `assets/screenshot1.png` … `assets/screenshot4.png` yollarına kaydedin.  
+> Klasör repo kökünde zaten oluşturulmuş durumda. İstediğiniz kadar görsel ekleyebilirsiniz.
 
 ---
 
 ## İçindekiler
 
 - [Proje Özeti](#proje-özeti)
+- [Demo & Screenshots](#️-demo--screenshots)
 - [Sonuçlar](#sonuçlar)
 - [Veri ve Etiketleme Akışı](#veri-ve-etiketleme-akışı)
 - [Özellik Seti](#özellik-seti)
@@ -19,6 +83,7 @@
 - [Kullanım](#kullanım)
 - [Canlı Demo](#canlı-demo)
 - [Notebook'lar](#notebooklar)
+- [Önemli Tasarım Notları](#önemli-tasarım-notları)
 - [Lisans](#lisans)
 
 ---
@@ -29,11 +94,22 @@
 
 **Ana zorluklar:**
 
-- **Yoğun sınıf dengesizliği** — gerçek pazarda 7 günde satılma oranı ~%5.8'dir.
-- **Sızıntı riski (data leakage)** — satıcı bazlı özelliklerin model ile etiket arasında zamansal ve grup düzeyinde sızıntı yapma riski; bu konuda ayrı bir deney (`scripts/seller_leakage_experiment.py`) ve grup-farkında split ile değerlendirilmiştir.
-- **Soğuk başlangıç (cold-start)** — production'da yeni yayınlanan bir ilanda beğeni/yorum sayıları sıfırdır; bunun etkisi ayrı bir **STATIC_ONLY** ablasyonunda ölçülmüştür.
+| Zorluk | Açıklama |
+|--------|----------|
+| **Yoğun sınıf dengesizliği** | Gerçek pazarda 7 günde satılma oranı ~%5.8'dir |
+| **Sızıntı riski (data leakage)** | Satıcı bazlı özelliklerin zamansal ve grup düzeyinde sızıntı yapma riski; ayrı bir deney (`scripts/seller_leakage_experiment.py`) ve grup-farkında split ile değerlendirildi |
+| **Soğuk başlangıç (cold-start)** | Production'da yeni ilanda beğeni/yorum sayıları sıfırdır; bunun etkisi **STATIC_ONLY** ablasyonunda ölçüldü |
 
-**Yaklaşım özet:** Dolap.com'dan kohort bazlı ham scrape → 7 gün sonra otomatik satış durumu kontrolü → 60 özelliklik dataset → XGBoost (+ 5 baseline karşılaştırma) → SHAP ile yorumlama → eşik optimizasyonu → canlı Flask demo.
+**Yaklaşım özet:**
+
+```
+Dolap.com kohort scrape
+  → 7 gün bekleme & otomatik etiketleme
+  → 60 özelliklik dataset (6.007 ilan)
+  → XGBoost + 5 baseline karşılaştırma
+  → SHAP yorumlama + eşik optimizasyonu
+  → Canlı Flask demo
+```
 
 ---
 
@@ -55,7 +131,7 @@ Test seti: **1.202 ilan** (toplamın %20'si), satıldı oranı %5.8. Tüm metrik
 ### Ablasyon (Özellik Aileleri)
 
 | Varyant | # Özellik | ROC-AUC | Δ vs FULL |
-|---|---:|---:|---:|
+|---------|----------:|--------:|----------:|
 | **FULL (referans)** | 60 | 0.8150 | — |
 | NO_ENGAGEMENT (beğeni/yorum çıkarıldı) | 49 | 0.8097 | −0.0053 |
 | STATIC_ONLY (cold-start: sadece statik özellikler) | 26 | 0.7491 | −0.0659 |
@@ -65,7 +141,7 @@ Test seti: **1.202 ilan** (toplamın %20'si), satıldı oranı %5.8. Tüm metrik
 ### Robustness — Grup-Farkında Split
 
 | Protokol | ROC-AUC | F1 |
-|---|---:|---:|
+|----------|--------:|---:|
 | A — rastgele split | 0.7755 | 0.4421 |
 | B — `seller_id` grup-farkında split | 0.6832 | 0.0000 |
 
@@ -96,15 +172,17 @@ Test seti: **1.202 ilan** (toplamın %20'si), satıldı oranı %5.8. Tüm metrik
 
 Toplam **60 özellik**, ailelere göre:
 
-- **Fiyat:** `price`, `price_log`, `price_to_category_median`, `price_to_brand_median`, `price_pctile_cat`, ...
-- **Marka & kategori:** `brand_tier` (1=budget → 5=luxury), `brand_enc`, `category_enc`, `category_freq`, `cat_competition_log`
-- **Ürün durumu:** `condition_ordinal`, `condition_score`, `cheap_and_new`
-- **Açıklama kalitesi:** `description_length`, `desc_has_urgency_keyword`, `desc_has_flaw_mention`, `desc_has_measurement`, `desc_has_quality`, `desc_is_placeholder`
-- **Görsel:** `photo_count`, `desc_depth_per_photo`, `like_per_photo`, `comment_per_photo`
-- **Satıcı:** `seller_listing_count`, `seller_rating_count`, `seller_frequency_log`, `seller_balance_weight`
-- **Etkileşim (engagement):** `like_count`, `comment_count`, `engagement_score`, `engagement_pctile`, `has_likes`, `has_comments`, `engagement_x_new`, `like_vs_seller_avg`
-- **Zamansal:** `listing_hour`, `listing_dow`, `is_weekend_listing`
-- **Lojistik:** `buyer_pays_shipping`
+| Aile | Başlıca Özellikler |
+|------|--------------------|
+| **Fiyat** | `price`, `price_log`, `price_to_category_median`, `price_to_brand_median`, `price_pctile_cat` |
+| **Marka & kategori** | `brand_tier` (1=budget → 5=luxury), `brand_enc`, `category_enc`, `category_freq`, `cat_competition_log` |
+| **Ürün durumu** | `condition_ordinal`, `condition_score`, `cheap_and_new` |
+| **Açıklama kalitesi** | `description_length`, `desc_has_urgency_keyword`, `desc_has_flaw_mention`, `desc_has_measurement`, `desc_has_quality`, `desc_is_placeholder` |
+| **Görsel** | `photo_count`, `desc_depth_per_photo`, `like_per_photo`, `comment_per_photo` |
+| **Satıcı** | `seller_listing_count`, `seller_rating_count`, `seller_frequency_log`, `seller_balance_weight` |
+| **Etkileşim (engagement)** | `like_count`, `comment_count`, `engagement_score`, `engagement_pctile`, `has_likes`, `has_comments`, `engagement_x_new`, `like_vs_seller_avg` |
+| **Zamansal** | `listing_hour`, `listing_dow`, `is_weekend_listing` |
+| **Lojistik** | `buyer_pays_shipping` |
 
 Tam liste ve provenance: [reports/feature_set_provenance.md](reports/feature_set_provenance.md)
 
@@ -114,6 +192,7 @@ Tam liste ve provenance: [reports/feature_set_provenance.md](reports/feature_set
 
 ```
 dolap-sale-prediction/
+├── assets/                          # 📸 README görselleri (screenshot*.png buraya)
 ├── configs/                         # YAML konfigürasyon
 │   ├── scraping.yaml                #   scraper rate-limit, retry, paths
 │   ├── features.yaml                #   marka tier mapping, aileler
@@ -235,12 +314,12 @@ python demo/demo_server.py
 # http://127.0.0.1:5000/ adresine gidin
 ```
 
-Demo özellikleri:
-
-- **60 numerik özellik input'u** (training median'larıyla pre-fill, arama kutusu, reset)
-- **Karar eşiği slider** (τ) — varsayılan 0.50, F1-optimal 0.247
-- **Canlı tahmin paneli** — etiket (SOLD / NOT SOLD), olasılık, gauge, headline metrikler
-- **Threshold-explainer panel** — slider hareket ettikçe karar anlık güncelleniyor
+| Demo Özelliği | Açıklama |
+|---------------|----------|
+| **60 numerik özellik input'u** | Training median'larıyla pre-fill, arama kutusu, reset |
+| **Karar eşiği slider (τ)** | Varsayılan 0.50, F1-optimal 0.247 |
+| **Canlı tahmin paneli** | Etiket (SOLD / NOT SOLD), olasılık, gauge, headline metrikler |
+| **Threshold-explainer panel** | Slider hareket ettikçe karar anlık güncelleniyor |
 
 Detaylı demo akışı: [demo/README.md](demo/README.md)
 
@@ -249,7 +328,7 @@ Detaylı demo akışı: [demo/README.md](demo/README.md)
 ## Notebook'lar
 
 | Notebook | Amaç |
-|---|---|
+|----------|------|
 | [Dolap_EDA_Feature_Engineering.ipynb](notebooks/Dolap_EDA_Feature_Engineering.ipynb) | Keşifsel veri analizi + feature engineering ilk turu |
 | [dolap_classification_final.ipynb](notebooks/dolap_classification_final.ipynb) | 6 model karşılaştırma, SHAP, eşik optimizasyonu, joblib export |
 | [dolap_ablation_study.ipynb](notebooks/dolap_ablation_study.ipynb) | Özellik ailesi ablasyonu + bootstrap CI |
