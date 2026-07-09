@@ -24,25 +24,22 @@ The interactive demo is built with Flask and vanilla JS, and runs entirely local
 
 | View | Description |
 |:----:|-------------|
-| **① Prediction Panel** | Enter any of the 60 features (pre-filled with training medians), hit **Predict**, and instantly receive a `SOLD` / `NOT SOLD` verdict with a calibrated probability gauge. |
-| **② Threshold Explainer** | Drag the decision threshold slider (τ) from 0 to 1 to observe real-time precision–recall trade-offs. Default: 0.50 · F1-optimal: **0.247**. |
-| **③ SHAP Feature Importance** | Waterfall and bar plots generated on-the-fly, showing which features pushed the prediction up or down and by how much. |
-| **④ ROC Curve Comparison** | Overlapping ROC curves for all six trained models, with 95 % bootstrap confidence bands around the XGBoost curve. |
+| **① Initial State** | Application on first load — 60 features pre-filled with training medians, 10 ready-made scenarios, threshold slider at τ = 0.50. |
+| **② SOLD — High Confidence** | "Hızlı satılan" scenario: model returns P(sold) = 95.94 %, well above the τ = 0.50 threshold → **SOLD within 7 days**. |
+| **③ NOT SOLD — High Confidence** | "Satılmayacak (kesin)" scenario: P(sold) = 0.08 %, model is certain → **NOT SOLD within 7 days**. |
+| **④ Threshold Flip** | "Belirsiz (P ≈ 0.5)" borderline case: P(sold) = 40.12 %. Sliding τ from 0.50 → 0.25 flips the verdict to **SOLD** — demonstrates real-time threshold sensitivity. |
 
 </div>
 
 <br>
 
-<!-- Replace the lines below with real screenshots once captured -->
-<!-- Recommended: 1280 × 800 px, saved as assets/screenshot{1-4}.png        -->
+![① Initial State — feature inputs, scenarios panel, metric cards](assets/screenshot1.png)
 
-![Prediction Panel](assets/screenshot1.png)
-![Threshold Explainer](assets/screenshot2.png)
-![SHAP Feature Importance](assets/screenshot3.png)
-![ROC Curve Comparison](assets/screenshot4.png)
+![② SOLD prediction — P(sold) = 95.94%, "Hızlı satılan" scenario](assets/screenshot2.png)
 
-> **Adding screenshots** — copy your captures to `assets/screenshot{1..4}.png` and push.  
-> The `assets/` directory is already tracked in the repository.
+![③ NOT SOLD prediction — P(sold) = 0.08%, "Satılmayacak (kesin)" scenario](assets/screenshot3.png)
+
+![④ Threshold flip — P=40.12% flips to SOLD when τ lowered to 0.247](assets/screenshot4.png)
 
 ---
 
