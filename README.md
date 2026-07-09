@@ -16,58 +16,33 @@
 
 ## 🖼️ Demo & Screenshots
 
-Aşağıdaki görseller, projenin canlı Flask demo arayüzünden alınmıştır.  
-Ekran görüntülerinizi `assets/` klasörüne yükleyip README otomatik olarak güncellenecektir.
+The interactive demo is built with Flask and vanilla JS, and runs entirely locally against the trained XGBoost pipeline. Screenshots below cover the four main views of the application.
 
 <br>
 
-<table align="center" cellspacing="0" cellpadding="6" border="0">
-  <tr>
-    <td align="center" width="50%">
-      <img
-        src="assets/screenshot1.png"
-        alt="Demo Arayüzü — Tahmin Paneli"
-        width="100%"
-        style="border-radius:8px; border:1px solid #e1e4e8;"
-      /><br/>
-      <sub><b>① Tahmin Paneli</b><br/>Özellik girişi, SOLD / NOT SOLD etiketi ve olasılık gauge'u</sub>
-    </td>
-    <td align="center" width="50%">
-      <img
-        src="assets/screenshot2.png"
-        alt="Karar Eşiği Slider — Threshold Explainer"
-        width="100%"
-        style="border-radius:8px; border:1px solid #e1e4e8;"
-      /><br/>
-      <sub><b>② Threshold Explainer</b><br/>τ slider'ı hareket ettikçe karar anlık güncelleniyor (default 0.50, optimal 0.247)</sub>
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="50%">
-      <img
-        src="assets/screenshot3.png"
-        alt="SHAP Özellik Önem Sıralaması"
-        width="100%"
-        style="border-radius:8px; border:1px solid #e1e4e8;"
-      /><br/>
-      <sub><b>③ SHAP Feature Importance</b><br/>Hangi özellikler tahmini hangi yönde etkiliyor?</sub>
-    </td>
-    <td align="center" width="50%">
-      <img
-        src="assets/screenshot4.png"
-        alt="6 Model ROC Eğrisi Karşılaştırması"
-        width="100%"
-        style="border-radius:8px; border:1px solid #e1e4e8;"
-      /><br/>
-      <sub><b>④ ROC Eğrileri</b><br/>6 modelin karşılaştırmalı performans grafiği — XGBoost AUC 0.815</sub>
-    </td>
-  </tr>
-</table>
+<div align="center">
+
+| View | Description |
+|:----:|-------------|
+| **① Prediction Panel** | Enter any of the 60 features (pre-filled with training medians), hit **Predict**, and instantly receive a `SOLD` / `NOT SOLD` verdict with a calibrated probability gauge. |
+| **② Threshold Explainer** | Drag the decision threshold slider (τ) from 0 to 1 to observe real-time precision–recall trade-offs. Default: 0.50 · F1-optimal: **0.247**. |
+| **③ SHAP Feature Importance** | Waterfall and bar plots generated on-the-fly, showing which features pushed the prediction up or down and by how much. |
+| **④ ROC Curve Comparison** | Overlapping ROC curves for all six trained models, with 95 % bootstrap confidence bands around the XGBoost curve. |
+
+</div>
 
 <br>
 
-> **📁 Görselleri eklemek için:** ekran görüntülerinizi `assets/screenshot1.png` … `assets/screenshot4.png` yollarına kaydedin.  
-> Klasör repo kökünde zaten oluşturulmuş durumda. İstediğiniz kadar görsel ekleyebilirsiniz.
+<!-- Replace the lines below with real screenshots once captured -->
+<!-- Recommended: 1280 × 800 px, saved as assets/screenshot{1-4}.png        -->
+
+![Prediction Panel](assets/screenshot1.png)
+![Threshold Explainer](assets/screenshot2.png)
+![SHAP Feature Importance](assets/screenshot3.png)
+![ROC Curve Comparison](assets/screenshot4.png)
+
+> **Adding screenshots** — copy your captures to `assets/screenshot{1..4}.png` and push.  
+> The `assets/` directory is already tracked in the repository.
 
 ---
 
